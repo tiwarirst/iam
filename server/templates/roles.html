@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}Aegis-IAM · Roles & Permissions{% endblock %}
+{% block page_title %}Roles & Permissions{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h3>🔑 Role Management</h3>
+</div>
+
+<!-- ── Create Role ────────────────────────────────────────────────── -->
+<div class="glass-card">
+    <h3><span class="icon">⊕</span> Create New Role</h3>
+    <form method="POST" action="{{ url_for('add_role') }}">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Role Name</label>
+                <input type="text" name="name" class="form-control" placeholder="e.g. devops" required
+                    pattern="^[a-z][a-z0-9_-]{1,31}$" title="Lowercase, 2-32 chars, start with letter">
+                <div class="form-hint">Lowercase, alphanumeric with dashes/underscores</div>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <input type="text" name="description" class="form-control" placeholder="e.g. DevOps team access">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Color Tag</label>
+            <div class="color-options">
+                <label class="color-option c-cyan selected">
+                    <input type="radio" name="color" value="cyan" checked>
+                </label>
+                <label class="color-option c-green">
+                    <input type="radio" name="color" value="green">
+                </label>
+                <label class="color-option c-purple">
+                    <input type="radio" name="color" value="purple">
+                </label>
+                <label class="color-option c-yellow">
+                    <input type="radio" name="color" value="yellow">
+                </label>
+                <label class="color-option c-red">
+                    <input type="radio" name="color" value="red">
+                </label>
+                <label class="color-option c-blue">
+                    <input type="radio" name="color" value="blue">
+                </label>
+                <label class="color-option c-orange">
+                    <input type="radio" name="color" value="orange">
+                </label>
+                <label class="color-option c-pink">
+                    <input type="radio" name="color" value="pink">
+                </label>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">⊕ Create Role</button>
+    </form>
+</div>
+
+<!-- ── Role Cards ─────────────────────────────────────────────────── -->
+<div class="glass-card">
+    <h3><span class="icon">🔑</span> All Roles ({{ roles | length }})</h3>
+</div>
+
+{% if roles %}
+<div class="card-grid">
+    {% for role in roles %}
+    <div class="mini-card">
+        <div class="card-title">
+            <span class="badge {{ role.color }}">{{ role.name | upper }}</span>
+        </div>
+        <div class="card-desc">{{ role.description or 'No description provided.' }}</div>
+        <div class="card-meta">
+            <span>👤 {{ role.users | length }} user{{ 's' if role.users | length != 1 else '' }}</span>
+            <span>📅 {{ role.created_at.strftime('%b %d, %Y') if role.created_at else 'N/A' }}</span>
+        </div>
+
+        <!-- Users in this role -->
+        {% if role.users %}
+        <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border-color);">
+            <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 6px; font-weight: 700;">Assigned Users</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                {% for u in role.users[:5] %}
+                <span style="font-size: 11px; padding: 2px 8px; background: var(--bg-input); border-radius: 4px; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace;">{{ u.username }}</span>
+                {% endfor %}
+                {% if role.users | length > 5 %}
+                <span style="font-size: 11px; color: var(--text-muted);">+{{ role.users | length - 5 }} more</span>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="card-actions">
+            <!-- Edit modal trigger -->
+            <button class="btn btn-secondary btn-xs" onclick="openEditRole('{{ role.id }}', '{{ role.description }}', '{{ role.color }}')">✏️ Edit</button>
+            <form method="POST" action="{{ url_for('delete_role', role_id=role.id) }}" style="display:inline;">
+                <button type="submit" class="btn btn-danger btn-xs"
+                    onclick="return confirm('Delete role \'{{ role.name }}\'?{% if role.users %} This role has {{ role.users | length }} user(s) — you must reassign them first.{% endif %}')">🗑️ Delete</button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="glass-card">
+    <div class="empty-state">
+        <div class="icon">🔑</div>
+        <p>No roles defined yet. Create your first role above.</p>
+    </div>
+</div>
+{% endif %}
+
+<!-- ── Edit Role Modal ────────────────────────────────────────────── -->
+<div class="modal-overlay" id="editRoleModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>✏️ Edit Role</h3>
+            <button class="modal-close" onclick="closeEditRole()">&times;</button>
+        </div>
+        <form method="POST" id="editRoleForm">
+            <div class="form-group">
+                <label>Description</label>
+                <input type="text" name="description" id="editRoleDesc" class="form-control">
+            </div>
+            <div class="form-group">
+                <label>Color Tag</label>
+                <div class="color-options">
+                    <label class="color-option c-cyan"><input type="radio" name="color" value="cyan"></label>
+                    <label class="color-option c-green"><input type="radio" name="color" value="green"></label>
+                    <label class="color-option c-purple"><input type="radio" name="color" value="purple"></label>
+                    <label class="color-option c-yellow"><input type="radio" name="color" value="yellow"></label>
+                    <label class="color-option c-red"><input type="radio" name="color" value="red"></label>
+                    <label class="color-option c-blue"><input type="radio" name="color" value="blue"></label>
+                    <label class="color-option c-orange"><input type="radio" name="color" value="orange"></label>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openEditRole(roleId, desc, color) {
+    document.getElementById('editRoleForm').action = '/edit_role/' + roleId;
+    document.getElementById('editRoleDesc').value = desc;
+    // Select the color
+    const modal = document.getElementById('editRoleModal');
+    modal.querySelectorAll('.color-option').forEach(opt => {
+        opt.classList.remove('selected');
+        const radio = opt.querySelector('input[type="radio"]');
+        if (radio && radio.value === color) {
+            opt.classList.add('selected');
+            radio.checked = true;
+        }
+    });
+    modal.classList.add('active');
+}
+
+function closeEditRole() {
+    document.getElementById('editRoleModal').classList.remove('active');
+}
+
+// Close modal on overlay click
+document.getElementById('editRoleModal').addEventListener('click', function(e) {
+    if (e.target === this) closeEditRole();
+});
+</script>
+{% endblock %}

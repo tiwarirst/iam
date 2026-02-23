@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Aegis-IAM — Cross-Platform Identity & Access Management Dashboard">
+    <title>{% block title %}Aegis-IAM{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+    <!-- ── Mobile Menu Toggle ───────────────────────────────────────── -->
+    <button class="mobile-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')" aria-label="Toggle menu">☰</button>
+
+    <!-- ── Sidebar ──────────────────────────────────────────────────── -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+            <div class="logo">A</div>
+            <div>
+                <h1>AEGIS-IAM</h1>
+                <div class="version">v2.0 · Security Dashboard</div>
+            </div>
+        </div>
+
+        <nav class="sidebar-nav">
+            <div class="nav-section-title">Overview</div>
+            <a href="{{ url_for('dashboard') }}" class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
+                <span class="icon">⊞</span> Dashboard
+            </a>
+
+            <div class="nav-section-title">Management</div>
+            <a href="{{ url_for('machines') }}" class="nav-link {% if request.endpoint == 'machines' %}active{% endif %}">
+                <span class="icon">⛃</span> Machines
+                {% if total_machines > 0 %}<span class="badge-count" style="background: var(--accent-blue);">{{ total_machines }}</span>{% endif %}
+            </a>
+            <a href="{{ url_for('users_page') }}" class="nav-link {% if request.endpoint == 'users_page' %}active{% endif %}">
+                <span class="icon">👤</span> Users
+                {% if total_users > 0 %}<span class="badge-count" style="background: var(--accent-green);">{{ total_users }}</span>{% endif %}
+            </a>
+            <a href="{{ url_for('roles_page') }}" class="nav-link {% if request.endpoint == 'roles_page' %}active{% endif %}">
+                <span class="icon">🔑</span> Roles & Permissions
+            </a>
+
+            <div class="nav-section-title">Actions</div>
+            <a href="{{ url_for('deploy_page') }}" class="nav-link {% if request.endpoint == 'deploy_page' %}active{% endif %}">
+                <span class="icon">🚀</span> Deploy / Remove
+            </a>
+
+            <div class="nav-section-title">Security</div>
+            <a href="{{ url_for('audit_page') }}" class="nav-link {% if request.endpoint == 'audit_page' %}active{% endif %}">
+                <span class="icon">📋</span> Audit Logs
+            </a>
+            <a href="{{ url_for('policies_page') }}" class="nav-link {% if request.endpoint == 'policies_page' %}active{% endif %}">
+                <span class="icon">🛡️</span> Policies
+            </a>
+
+            <div class="nav-section-title">System</div>
+            <a href="{{ url_for('settings_page') }}" class="nav-link {% if request.endpoint == 'settings_page' %}active{% endif %}">
+                <span class="icon">⚙</span> Settings
+            </a>
+        </nav>
+
+        <div class="sidebar-footer">
+            Aegis-IAM &copy; {{ current_year }}
+        </div>
+    </aside>
+
+    <!-- ── Main Content ─────────────────────────────────────────────── -->
+    <div class="main-content">
+        <header class="topbar">
+            <h2>{% block page_title %}Dashboard{% endblock %}</h2>
+            <div class="topbar-actions">
+                <div class="search-box">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="globalSearch" placeholder="Search machines, users, roles..." autocomplete="off">
+                    <div class="search-results" id="searchResults"></div>
+                </div>
+                <div class="notification-bell" onclick="toggleNotifications()" data-tooltip="Notifications">
+                    🔔
+                    {% if unread_alerts > 0 %}
+                    <span class="bell-badge">{{ unread_alerts }}</span>
+                    {% endif %}
+                </div>
+                <div class="status-badge">
+                    <span class="status-dot"></span>
+                    System Online
+                </div>
+            </div>
+        </header>
+
+        <main class="page-body">
+            <!-- Flash messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="flash-messages" id="flashMessages">
+                {% for category, message in messages %}
+                <div class="flash {{ category }}">
+                    <span>{{ message }}</span>
+                    <button class="flash-close" onclick="this.parentElement.remove()">&times;</button>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endwith %}
+
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <!-- ── Global JavaScript ────────────────────────────────────────── -->
+    <script>
+    // Auto-dismiss flash messages
+    setTimeout(() => {
+        document.querySelectorAll('.flash').forEach((el, i) => {
+            setTimeout(() => {
+                el.style.opacity = '0';
+                el.style.transform = 'translateY(-10px)';
+                setTimeout(() => el.remove(), 300);
+            }, i * 200);
+        });
+    }, 5000);
+
+    // Global Search
+    const searchInput = document.getElementById('globalSearch');
+    const searchResults = document.getElementById('searchResults');
+    let searchTimeout;
+
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            const q = this.value.trim();
+            if (q.length < 2) {
+                searchResults.classList.remove('active');
+                return;
+            }
+            searchTimeout = setTimeout(() => {
+                fetch('/api/search?q=' + encodeURIComponent(q))
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.results.length === 0) {
+                            searchResults.innerHTML = '<div class="search-result-item"><span style="color:var(--text-muted)">No results found</span></div>';
+                        } else {
+                            searchResults.innerHTML = data.results.map(r =>
+                                `<a href="${r.url}" class="search-result-item">
+                                    <span class="result-type">${r.type}</span>
+                                    <div>
+                                        <div class="result-title">${r.title}</div>
+                                        <div class="result-subtitle">${r.subtitle}</div>
+                                    </div>
+                                </a>`
+                            ).join('');
+                        }
+                        searchResults.classList.add('active');
+                    });
+            }, 300);
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+                searchResults.classList.remove('active');
+            }
+        });
+    }
+
+    // Notification toggle
+    function toggleNotifications() {
+        window.location.href = '/audit';
+    }
+
+    // Close sidebar on mobile when clicking outside
+    document.addEventListener('click', function(e) {
+        const sidebar = document.getElementById('sidebar');
+        const toggle = document.querySelector('.mobile-toggle');
+        if (window.innerWidth <= 768 && sidebar.classList.contains('open')
+            && !sidebar.contains(e.target) && !toggle.contains(e.target)) {
+            sidebar.classList.remove('open');
+        }
+    });
+
+    // Table filter utility
+    function filterTable(inputId, tableId) {
+        const filter = document.getElementById(inputId).value.toLowerCase();
+        const rows = document.querySelectorAll('#' + tableId + ' tbody tr');
+        rows.forEach(row => {
+            const text = row.textContent.toLowerCase();
+            row.style.display = text.includes(filter) ? '' : 'none';
+        });
+    }
+
+    // Password strength meter
+    function checkPasswordStrength(password) {
+        let strength = 0;
+        if (password.length >= 8) strength++;
+        if (password.length >= 12) strength++;
+        if (/[A-Z]/.test(password)) strength++;
+        if (/[0-9]/.test(password)) strength++;
+        if (/[^A-Za-z0-9]/.test(password)) strength++;
+
+        const levels = ['', 'weak', 'fair', 'good', 'good', 'strong'];
+        return levels[Math.min(strength, 5)];
+    }
+
+    // Toggle password visibility
+    function togglePassword(inputId) {
+        const inp = document.getElementById(inputId);
+        inp.type = inp.type === 'password' ? 'text' : 'password';
+    }
+
+    // Color option selection
+    document.querySelectorAll('.color-option').forEach(opt => {
+        opt.addEventListener('click', function() {
+            this.closest('.color-options').querySelectorAll('.color-option').forEach(o => o.classList.remove('selected'));
+            this.classList.add('selected');
+            const radio = this.querySelector('input[type="radio"]');
+            if (radio) radio.checked = true;
+        });
+    });
+    </script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

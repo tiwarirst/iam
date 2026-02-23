@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}Aegis-IAM · Managed Users{% endblock %}
+{% block page_title %}Managed Users{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h3>👤 User Management</h3>
+    <div class="header-actions">
+        <a href="{{ url_for('deploy_page') }}" class="btn btn-primary btn-sm">🚀 Deploy New User</a>
+    </div>
+</div>
+
+<!-- ── User Stats ─────────────────────────────────────────────────── -->
+<div class="stat-grid">
+    <div class="stat-card green">
+        <div class="label">Total Users</div>
+        <div class="value">{{ users | length }}</div>
+        <div class="icon-bg">👤</div>
+    </div>
+    <div class="stat-card cyan">
+        <div class="label">Active</div>
+        <div class="value">{{ users | selectattr('status', 'equalto', 'active') | list | length }}</div>
+        <div class="icon-bg">✓</div>
+    </div>
+    <div class="stat-card yellow">
+        <div class="label">Disabled</div>
+        <div class="value">{{ users | selectattr('status', 'equalto', 'disabled') | list | length }}</div>
+        <div class="icon-bg">⏸</div>
+    </div>
+    <div class="stat-card red">
+        <div class="label">Locked</div>
+        <div class="value">{{ users | selectattr('status', 'equalto', 'locked') | list | length }}</div>
+        <div class="icon-bg">🔒</div>
+    </div>
+</div>
+
+<!-- ── User Table ─────────────────────────────────────────────────── -->
+<div class="glass-card">
+    <h3>
+        <span class="icon">👤</span> All Managed Users
+        <span style="margin-left: auto; font-size: 11px; color: var(--text-muted); font-weight: 400;">
+            {{ users | length }} total
+        </span>
+    </h3>
+
+    {% if users %}
+    <div class="table-filter">
+        <input type="text" id="userFilter" placeholder="🔍 Search users by name, role, machine..."
+            oninput="filterTable('userFilter', 'usersTable')">
+    </div>
+    <div class="table-wrapper">
+        <table class="data-table" id="usersTable">
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Full Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Machine</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-glow), rgba(139,92,246,0.1)); border: 1px solid var(--border-bright); display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--accent); font-weight: 700;">
+                                {{ u.username[0] | upper }}
+                            </div>
+                            <div>
+                                <div class="mono" style="font-weight: 600;">{{ u.username }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td style="font-size: 13px;">{{ u.full_name or '—' }}</td>
+                    <td style="font-size: 12px; color: var(--text-muted);">{{ u.email or '—' }}</td>
+                    <td>
+                        {% if u.role %}
+                        <span class="badge {{ u.role.color }}">{{ u.role.name }}</span>
+                        {% else %}
+                        <span class="badge disabled">None</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if u.machine %}
+                        <span style="font-size: 12px;">{{ u.machine.hostname }}</span>
+                        <br><span class="mono" style="font-size: 10px;">{{ u.machine.ip_address }}</span>
+                        {% else %}
+                        <span style="color: var(--text-muted);">—</span>
+                        {% endif %}
+                    </td>
+                    <td><span class="badge {{ u.status }}">{{ u.status }}</span></td>
+                    <td class="mono" style="font-size: 11px;">{{ u.created_at.strftime('%b %d, %Y') }}</td>
+                    <td>
+                        <div class="btn-group">
+                            <button class="btn btn-secondary btn-xs" onclick="openEditUser({{ u.id }}, '{{ u.full_name or '' }}', '{{ u.email or '' }}', {{ u.role_id or 0 }})">✏️</button>
+                            <form method="POST" action="{{ url_for('toggle_user', user_id=u.id) }}" style="display:inline;">
+                                <button type="submit" class="btn btn-warning btn-xs" data-tooltip="Toggle status">
+                                    {% if u.status == 'active' %}⏸{% else %}▶{% endif %}
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="icon">👤</div>
+        <p>No managed users yet. Deploy a user to a target machine to get started.</p>
+        <a href="{{ url_for('deploy_page') }}" class="btn btn-primary btn-sm">🚀 Deploy User</a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- ── Edit User Modal ────────────────────────────────────────────── -->
+<div class="modal-overlay" id="editUserModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>✏️ Edit User</h3>
+            <button class="modal-close" onclick="document.getElementById('editUserModal').classList.remove('active')">&times;</button>
+        </div>
+        <form method="POST" id="editUserForm">
+            <div class="form-group">
+                <label>Full Name</label>
+                <input type="text" name="full_name" id="editFullName" class="form-control">
+            </div>
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" name="email" id="editEmail" class="form-control">
+            </div>
+            <div class="form-group">
+                <label>Role</label>
+                <select name="role_id" id="editRoleId" class="form-control">
+                    <option value="">— No Role —</option>
+                    {% for r in roles %}
+                    <option value="{{ r.id }}">{{ r.name | capitalize }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openEditUser(userId, fullName, email, roleId) {
+    document.getElementById('editUserForm').action = '/edit_user/' + userId;
+    document.getElementById('editFullName').value = fullName;
+    document.getElementById('editEmail').value = email;
+    const roleSelect = document.getElementById('editRoleId');
+    roleSelect.value = roleId > 0 ? roleId : '';
+    document.getElementById('editUserModal').classList.add('active');
+}
+
+document.getElementById('editUserModal').addEventListener('click', function(e) {
+    if (e.target === this) this.classList.remove('active');
+});
+</script>
+{% endblock %}

@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Aegis-IAM · Settings{% endblock %}
+{% block page_title %}System Settings{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h3>⚙️ System Configuration</h3>
+</div>
+
+<!-- ── System Overview ────────────────────────────────────────────── -->
+<div class="stat-grid">
+    <div class="stat-card">
+        <div class="stat-value">{{ total_machines }}</div>
+        <div class="stat-label">Registered Machines</div>
+    </div>
+    <div class="stat-card accent">
+        <div class="stat-value">{{ total_users }}</div>
+        <div class="stat-label">Managed Users</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ roles | length }}</div>
+        <div class="stat-label">Roles Defined</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ policies | length }}</div>
+        <div class="stat-label">Active Policies</div>
+    </div>
+</div>
+
+<!-- ── JWT / Auth Config ──────────────────────────────────────────── -->
+<div class="glass-card">
+    <h3><span class="icon">🔐</span> Authentication Configuration</h3>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Setting</th>
+                <th>Value</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><code>JWT_SECRET_KEY</code></td>
+                <td><span class="badge info" style="font-family: 'JetBrains Mono', monospace;">••••••••••••</span></td>
+                <td>Shared secret for server ↔ agent token signing</td>
+            </tr>
+            <tr>
+                <td><code>JWT_ALGORITHM</code></td>
+                <td><span class="badge info">{{ config.JWT_ALGORITHM }}</span></td>
+                <td>Algorithm used for JWT encoding/decoding</td>
+            </tr>
+            <tr>
+                <td><code>TOKEN_EXPIRY</code></td>
+                <td><span class="badge info">{{ config.TOKEN_EXPIRY_MINUTES }} minutes</span></td>
+                <td>Token time-to-live before expiration</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- ── Server Config ──────────────────────────────────────────────── -->
+<div class="glass-card">
+    <h3><span class="icon">🖥️</span> Server Configuration</h3>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Setting</th>
+                <th>Value</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><code>SERVER_PORT</code></td>
+                <td><span class="badge info">{{ config.SERVER_PORT }}</span></td>
+                <td>Dashboard web server port</td>
+            </tr>
+            <tr>
+                <td><code>AGENT_PORT</code></td>
+                <td><span class="badge info">{{ config.AGENT_PORT }}</span></td>
+                <td>Default port for remote agents</td>
+            </tr>
+            <tr>
+                <td><code>DATABASE</code></td>
+                <td><span class="badge info" style="font-family: 'JetBrains Mono', monospace;">aegis_iam.db</span></td>
+                <td>SQLite database file location</td>
+            </tr>
+            <tr>
+                <td><code>FLASK_ENV</code></td>
+                <td><span class="badge warning">Debug Mode</span></td>
+                <td>Application environment flag</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- ── Agent Instructions ─────────────────────────────────────────── -->
+<div class="glass-card">
+    <h3><span class="icon">🤖</span> Agent Deployment Guide</h3>
+    <div style="padding: 16px; background: var(--bg-input); border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 16px;">
+        <p style="margin: 0 0 12px 0; color: var(--text-secondary);">
+            Deploy agents on target machines to enable remote user management. Each agent communicates with this dashboard via JWT-authenticated REST calls.
+        </p>
+        <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 8px; font-weight: 700;">Linux Installation</div>
+        <pre style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--accent); margin: 0 0 16px 0; padding: 12px; background: rgba(0,0,0,0.3); border-radius: 6px; overflow-x: auto;">pip install flask PyJWT
+sudo python agent/universal_agent.py</pre>
+        <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 8px; font-weight: 700;">Windows Installation (Administrator PowerShell)</div>
+        <pre style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--accent); margin: 0; padding: 12px; background: rgba(0,0,0,0.3); border-radius: 6px; overflow-x: auto;">pip install flask PyJWT
+python agent\universal_agent.py</pre>
+    </div>
+    <div style="padding: 12px; border-left: 3px solid var(--warning); background: rgba(var(--warning-rgb, 255,170,0), 0.08); border-radius: 0 6px 6px 0;">
+        <strong style="color: var(--warning);">⚠️ Important:</strong>
+        <span style="color: var(--text-secondary);">Agents require root/administrator privileges to manage system users. Ensure the JWT secret key matches between server and agent config files.</span>
+    </div>
+</div>
+
+<!-- ── Database Actions ───────────────────────────────────────────── -->
+<div class="glass-card">
+    <h3><span class="icon">🗄️</span> Maintenance Actions</h3>
+    <div class="form-row">
+        <form method="POST" action="{{ url_for('clear_audit') }}" onsubmit="return confirm('Permanently delete all audit logs?');">
+            <button type="submit" class="btn btn-danger">🗑️ Clear Audit Logs</button>
+        </form>
+        <a href="{{ url_for('export_audit') }}" class="btn btn-primary" style="text-decoration:none;">📥 Export Audit CSV</a>
+        <a href="{{ url_for('check_all_machines') }}" class="btn btn-accent" style="text-decoration:none;">🔍 Health Check All Machines</a>
+    </div>
+</div>
+
+{% endblock %}

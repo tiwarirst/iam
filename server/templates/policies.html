@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Aegis-IAM · Security Policies{% endblock %}
+{% block page_title %}Security Policies{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h3>🛡️ Policy Management</h3>
+</div>
+
+<!-- ── Create Policy ──────────────────────────────────────────────── -->
+<div class="glass-card">
+    <h3><span class="icon">⊕</span> Create New Policy</h3>
+    <form method="POST" action="{{ url_for('add_policy') }}">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Policy Name</label>
+                <input type="text" name="name" class="form-control" placeholder="e.g. MFA Requirement" required>
+            </div>
+            <div class="form-group">
+                <label>Policy Type</label>
+                <select name="policy_type" class="form-control">
+                    <option value="password">🔒 Password Policy</option>
+                    <option value="access">🚪 Access Control</option>
+                    <option value="session">⏱️ Session Policy</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Description</label>
+            <input type="text" name="description" class="form-control" placeholder="Brief description of this policy">
+        </div>
+        <div class="form-group">
+            <label>Rules (JSON)</label>
+            <textarea name="rules" class="form-control" rows="4" placeholder='{"min_length": 12, "require_uppercase": true, "max_age_days": 90}'>{}</textarea>
+            <div class="form-hint">Define policy rules in JSON format. Examples: min_length, require_mfa, timeout_minutes, max_sessions</div>
+        </div>
+        <button type="submit" class="btn btn-primary">⊕ Create Policy</button>
+    </form>
+</div>
+
+<!-- ── Policy Cards ───────────────────────────────────────────────── -->
+<div class="glass-card">
+    <h3><span class="icon">🛡️</span> All Policies ({{ policies | length }})</h3>
+</div>
+
+{% if policies %}
+<div class="card-grid">
+    {% for policy in policies %}
+    <div class="mini-card" style="{% if not policy.is_active %}opacity: 0.6;{% endif %}">
+        <div class="card-title">
+            {% if policy.policy_type == 'password' %}🔒
+            {% elif policy.policy_type == 'access' %}🚪
+            {% elif policy.policy_type == 'session' %}⏱️
+            {% endif %}
+            {{ policy.name }}
+            {% if policy.is_active %}
+            <span class="badge active" style="font-size: 9px;">Active</span>
+            {% else %}
+            <span class="badge inactive" style="font-size: 9px;">Inactive</span>
+            {% endif %}
+        </div>
+        <div class="card-desc">{{ policy.description or 'No description.' }}</div>
+        <div class="card-meta">
+            <span class="badge info">{{ policy.policy_type }}</span>
+            <span>📅 {{ policy.created_at.strftime('%b %d, %Y') if policy.created_at else 'N/A' }}</span>
+        </div>
+
+        <!-- Show rules -->
+        <div style="margin-top: 12px; padding: 10px; background: var(--bg-input); border-radius: 6px; border: 1px solid var(--border-color);">
+            <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 6px; font-weight: 700;">Rules</div>
+            <pre style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent); white-space: pre-wrap; margin: 0; max-height: 100px; overflow-y: auto;">{{ policy.rules }}</pre>
+        </div>
+
+        <div class="card-actions">
+            <form method="POST" action="{{ url_for('toggle_policy', policy_id=policy.id) }}" style="display:inline;">
+                <button type="submit" class="btn btn-{% if policy.is_active %}warning{% else %}success{% endif %} btn-xs">
+                    {% if policy.is_active %}⏸ Deactivate{% else %}▶ Activate{% endif %}
+                </button>
+            </form>
+            <form method="POST" action="{{ url_for('delete_policy', policy_id=policy.id) }}" style="display:inline;">
+                <button type="submit" class="btn btn-danger btn-xs"
+                    onclick="return confirm('Delete policy \'{{ policy.name }}\'?')">🗑️ Delete</button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="glass-card">
+    <div class="empty-state">
+        <div class="icon">🛡️</div>
+        <p>No policies defined yet. Create your first security policy above.</p>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

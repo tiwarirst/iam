@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}Aegis-IAM · Audit Logs{% endblock %}
+{% block page_title %}Audit Logs{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h3>📋 Audit & Compliance</h3>
+    <div class="header-actions">
+        <a href="{{ url_for('export_audit') }}" class="btn btn-secondary btn-sm">📥 Export CSV</a>
+        <form method="POST" action="{{ url_for('clear_audit') }}" style="display:inline;">
+            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Clear ALL audit logs? This cannot be undone.')">🗑️ Clear All</button>
+        </form>
+    </div>
+</div>
+
+<!-- ── Stats ──────────────────────────────────────────────────────── -->
+<div class="stat-grid">
+    <div class="stat-card cyan">
+        <div class="label">Total Events</div>
+        <div class="value">{{ total }}</div>
+        <div class="icon-bg">📋</div>
+    </div>
+    <div class="stat-card green">
+        <div class="label">Current Page</div>
+        <div class="value">{{ page }}</div>
+        <div class="stat-sub">of {{ total_pages }} pages</div>
+        <div class="icon-bg">📄</div>
+    </div>
+</div>
+
+<!-- ── Fetch from Agent ───────────────────────────────────────────── -->
+<div class="glass-card">
+    <h3><span class="icon">⟳</span> Fetch Remote Audit Logs</h3>
+    {% if machines %}
+    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+        {% for m in machines %}
+        <a href="{{ url_for('fetch_audit', machine_id=m.id) }}" class="btn btn-secondary btn-sm">
+            ⟳ {{ m.hostname }}
+            <span class="badge {{ m.os_type | lower }}">{{ m.os_type }}</span>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding: 24px;">
+        <p>No machines registered. <a href="{{ url_for('machines') }}">Add one →</a></p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- ── Filters ────────────────────────────────────────────────────── -->
+<div class="filters-bar">
+    <label>Filter:</label>
+    <form method="GET" action="{{ url_for('audit_page') }}" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+        <select name="severity" class="form-control" style="width: auto; padding: 6px 12px; font-size: 12px;">
+            <option value="">All Severities</option>
+            <option value="info" {% if severity_filter == 'info' %}selected{% endif %}>Info</option>
+            <option value="warning" {% if severity_filter == 'warning' %}selected{% endif %}>Warning</option>
+            <option value="critical" {% if severity_filter == 'critical' %}selected{% endif %}>Critical</option>
+        </select>
+        <select name="event_type" class="form-control" style="width: auto; padding: 6px 12px; font-size: 12px;">
+            <option value="">All Events</option>
+            {% for et in event_types %}
+            <option value="{{ et }}" {% if event_filter == et %}selected{% endif %}>{{ et }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+        {% if severity_filter or event_filter %}
+        <a href="{{ url_for('audit_page') }}" class="btn btn-ghost btn-sm">Clear</a>
+        {% endif %}
+    </form>
+</div>
+
+<!-- ── Log Table ──────────────────────────────────────────────────── -->
+<div class="glass-card">
+    <h3>
+        <span class="icon">📋</span> Audit Event Log
+        <span style="font-size: 11px; color: var(--text-muted); font-weight: 400; margin-left: auto;">
+            Showing {{ local_logs | length }} of {{ total }} events
+        </span>
+    </h3>
+    {% if local_logs %}
+    <div class="table-filter">
+        <input type="text" id="logFilter" placeholder="🔍 Search in logs..."
+            oninput="filterTable('logFilter', 'logsTable')">
+    </div>
+    <div class="table-wrapper">
+        <table class="data-table" id="logsTable">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Machine</th>
+                    <th>Event Type</th>
+                    <th>Severity</th>
+                    <th>Actor</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in local_logs %}
+                <tr>
+                    <td class="mono" style="font-size: 11px; white-space: nowrap;">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                    <td>{{ log.machine.hostname if log.machine else 'N/A' }}</td>
+                    <td><span class="badge active">{{ log.event_type }}</span></td>
+                    <td><span class="badge {{ log.severity }}">{{ log.severity }}</span></td>
+                    <td style="font-size: 12px;">{{ log.actor }}</td>
+                    <td style="font-size: 12px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ log.details }}">{{ log.details[:120] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if total_pages > 1 %}
+    <div class="pagination">
+        {% if page > 1 %}
+        <a href="{{ url_for('audit_page', page=page-1, severity=severity_filter, event_type=event_filter) }}">← Prev</a>
+        {% else %}
+        <span class="disabled">← Prev</span>
+        {% endif %}
+
+        {% for p in range(1, total_pages + 1) %}
+            {% if p == page %}
+            <span class="current">{{ p }}</span>
+            {% elif p <= 3 or p >= total_pages - 2 or (p >= page - 1 and p <= page + 1) %}
+            <a href="{{ url_for('audit_page', page=p, severity=severity_filter, event_type=event_filter) }}">{{ p }}</a>
+            {% elif p == 4 or p == total_pages - 3 %}
+            <span style="color: var(--text-muted);">...</span>
+            {% endif %}
+        {% endfor %}
+
+        {% if page < total_pages %}
+        <a href="{{ url_for('audit_page', page=page+1, severity=severity_filter, event_type=event_filter) }}">Next →</a>
+        {% else %}
+        <span class="disabled">Next →</span>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state">
+        <div class="icon">📋</div>
+        <p>No audit logs stored yet. Fetch logs from an agent above, or deploy/remove users to generate events.</p>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}

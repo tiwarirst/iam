@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}Aegis-IAM · Deploy / Remove User{% endblock %}
+{% block page_title %}Deploy / Remove User{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h3>🚀 User Deployment Center</h3>
+</div>
+
+<!-- ── Deploy & Remove Side by Side ───────────────────────────────── -->
+<div class="grid-2">
+    <!-- Deploy User -->
+    <div class="glass-card">
+        <h3><span class="icon" style="color: var(--accent-green);">⊕</span> Deploy New User</h3>
+        {% if machines %}
+        <form method="POST" action="{{ url_for('deploy_user') }}">
+            <div class="form-group">
+                <label>Target Machine</label>
+                <select name="machine_id" class="form-control" required>
+                    <option value="">— Select Active Machine —</option>
+                    {% for m in machines %}
+                    <option value="{{ m.id }}">{{ m.hostname }} ({{ m.ip_address }}) · {{ m.os_type }}</option>
+                    {% endfor %}
+                </select>
+                <div class="form-hint">Only active machines are listed</div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" name="username" class="form-control" placeholder="e.g. jdoe" required
+                        pattern="^[a-zA-Z][a-zA-Z0-9._-]{2,31}$" title="3-32 chars, start with letter">
+                </div>
+                <div class="form-group">
+                    <label>Role</label>
+                    <select name="role_id" class="form-control">
+                        <option value="">— No Role —</option>
+                        {% for r in roles %}
+                        <option value="{{ r.id }}">{{ r.name | capitalize }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Full Name (optional)</label>
+                    <input type="text" name="full_name" class="form-control" placeholder="e.g. John Doe">
+                </div>
+                <div class="form-group">
+                    <label>Email (optional)</label>
+                    <input type="email" name="email" class="form-control" placeholder="e.g. john@company.com">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <div class="password-wrapper">
+                    <input type="password" name="password" id="deployPassword" class="form-control"
+                        placeholder="Minimum 8 characters" required minlength="8"
+                        oninput="updateStrength(this.value)">
+                    <button type="button" class="password-toggle" onclick="togglePassword('deployPassword')">👁</button>
+                </div>
+                <div class="password-strength">
+                    <div class="bar" id="strengthBar"></div>
+                </div>
+                <div class="form-hint" id="strengthText">Enter a password</div>
+            </div>
+            <button type="submit" class="btn btn-success btn-lg" style="width: 100%;">🚀 Deploy User to Machine</button>
+        </form>
+        {% else %}
+        <div class="empty-state">
+            <div class="icon">⛃</div>
+            <p>No active machines available.</p>
+            <a href="{{ url_for('machines') }}" class="btn btn-primary btn-sm">Register a Machine</a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Remove User -->
+    <div class="glass-card">
+        <h3><span class="icon" style="color: var(--accent-red);">✕</span> Remove User</h3>
+        {% if all_machines %}
+        <form method="POST" action="{{ url_for('remove_user') }}">
+            <div class="form-group">
+                <label>Target Machine</label>
+                <select name="machine_id" class="form-control" required>
+                    <option value="">— Select Machine —</option>
+                    {% for m in all_machines %}
+                    <option value="{{ m.id }}">{{ m.hostname }} ({{ m.ip_address }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Username to Remove</label>
+                <input type="text" name="username" class="form-control" placeholder="e.g. jdoe" required>
+                <div class="form-hint">The OS-level user will be permanently deleted from the machine</div>
+            </div>
+            <button type="submit" class="btn btn-danger btn-lg" style="width: 100%;"
+                onclick="return confirm('This will permanently delete the user from the target machine. Continue?')">✕ Remove User from Machine</button>
+        </form>
+
+        <!-- Currently deployed users -->
+        {% if managed_users %}
+        <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border-color);">
+            <h3 style="font-size: 13px; margin-bottom: 12px;"><span class="icon">👤</span> Deployed Users Reference</h3>
+            <div class="table-wrapper" style="max-height: 300px; overflow-y: auto;">
+                <table class="data-table">
+                    <thead>
+                        <tr><th>Username</th><th>Machine</th><th>Role</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for u in managed_users[:10] %}
+                        <tr>
+                            <td class="mono">{{ u.username }}</td>
+                            <td style="font-size:12px;">{{ u.machine.hostname if u.machine else 'N/A' }}</td>
+                            <td><span class="badge {{ u.role.color if u.role else 'info' }}">{{ u.role.name if u.role else 'None' }}</span></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="empty-state">
+            <div class="icon">⛃</div>
+            <p>No machines available.</p>
+            <a href="{{ url_for('machines') }}" class="btn btn-primary btn-sm">Register a Machine</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function updateStrength(password) {
+    const bar = document.getElementById('strengthBar');
+    const text = document.getElementById('strengthText');
+    if (!bar) return;
+
+    bar.className = 'bar';
+    if (password.length === 0) {
+        text.textContent = 'Enter a password';
+        return;
+    }
+
+    const level = checkPasswordStrength(password);
+    bar.classList.add(level);
+
+    const messages = {
+        'weak': '⚠ Weak — add more characters',
+        'fair': '⚡ Fair — add uppercase/numbers',
+        'good': '✓ Good password',
+        'strong': '🛡️ Strong password!'
+    };
+    text.textContent = messages[level] || 'Enter a password';
+    text.style.color = {
+        'weak': 'var(--accent-red)',
+        'fair': 'var(--accent-yellow)',
+        'good': 'var(--accent-blue)',
+        'strong': 'var(--accent-green)'
+    }[level] || 'var(--text-muted)';
+}
+</script>
+{% endblock %}

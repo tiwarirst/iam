@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Aegis-IAM · Sessions · {{ machine.hostname }}{% endblock %}
+{% block page_title %}Active Sessions — {{ machine.hostname }}{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h3>
+        👤 Sessions on
+        <span class="mono" style="color: var(--accent);">{{ machine.ip_address }}</span>
+        <span class="badge {{ machine.os_type | lower }}">{{ machine.os_type }}</span>
+    </h3>
+    <div class="header-actions">
+        <a href="{{ url_for('machines') }}" class="btn btn-secondary btn-sm">← Back to Machines</a>
+        <a href="{{ url_for('sessions', machine_id=machine.id) }}" class="btn btn-primary btn-sm">⟳ Refresh</a>
+    </div>
+</div>
+
+<!-- ── Machine Info ───────────────────────────────────────────────── -->
+<div class="stat-grid">
+    <div class="stat-card cyan">
+        <div class="label">Hostname</div>
+        <div class="value" style="font-size: 20px;">{{ machine.hostname }}</div>
+        <div class="icon-bg">⛃</div>
+    </div>
+    <div class="stat-card green">
+        <div class="label">Active Sessions</div>
+        <div class="value">{{ sessions | length }}</div>
+        <div class="icon-bg">👤</div>
+    </div>
+    <div class="stat-card {{ 'blue' if machine.os_type == 'Windows' else 'orange' }}">
+        <div class="label">Operating System</div>
+        <div class="value" style="font-size: 20px;">{{ machine.os_type }}</div>
+        <div class="icon-bg">🖥️</div>
+    </div>
+</div>
+
+<!-- ── Session Table ──────────────────────────────────────────────── -->
+<div class="glass-card">
+    <h3>
+        <span class="icon">👤</span> Active User Sessions
+        <span style="margin-left: auto; font-size: 11px; color: var(--text-muted); font-weight: 400;">
+            Live data from agent
+        </span>
+    </h3>
+
+    {% if sessions %}
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>User</th>
+                    {% if machine.os_type == 'Linux' %}
+                    <th>Terminal</th>
+                    <th>Login Time</th>
+                    {% else %}
+                    <th>Session</th>
+                    <th>State</th>
+                    <th>Login Time</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in sessions %}
+                <tr>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--accent-glow); border: 1px solid var(--border-bright); display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--accent);">
+                                {{ s.user[0] | upper }}
+                            </div>
+                            <span class="mono">{{ s.user }}</span>
+                        </div>
+                    </td>
+                    {% if machine.os_type == 'Linux' %}
+                    <td><span class="badge info">{{ s.terminal }}</span></td>
+                    <td class="mono" style="font-size: 12px;">{{ s.login_time }}</td>
+                    {% else %}
+                    <td>{{ s.session }}</td>
+                    <td><span class="badge active">{{ s.state }}</span></td>
+                    <td class="mono" style="font-size: 12px;">{{ s.login_time }}</td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="icon">👤</div>
+        <p>No active sessions found, or the agent could not be reached.</p>
+        <a href="{{ url_for('sessions', machine_id=machine.id) }}" class="btn btn-primary btn-sm">⟳ Try Again</a>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}
