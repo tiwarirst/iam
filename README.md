@@ -1,183 +1,168 @@
-# 🛡️ Aegis-IAM — Cross-Platform Identity & Access Management
+# Aegis-IAM
 
-A centralized **Flask Dashboard** to manage local user accounts on both **Ubuntu (Linux)** and **Windows 10/11** via lightweight Python agents. Features a dark cybersecurity-themed UI with real-time analytics, role-based access control, security policy management, and comprehensive audit logging.
+**Cross-Platform Identity & Access Management System**
 
----
+Manage local user accounts on **Linux** and **Windows** machines from a single web dashboard. A lightweight Python agent runs on each target machine and receives JWT-authenticated commands from the central Flask server.
 
-## ✨ Features
-
-| Feature | Description |
-|---|---|
-| **Dashboard Analytics** | Interactive Chart.js charts (activity timeline, OS distribution, role breakdown) |
-| **Machine Management** | Register, monitor, health-check, and toggle target machines |
-| **User Deployment** | Deploy/remove OS-level users remotely with password strength validation |
-| **Role Management** | CRUD roles with color tags, assigned-user counts, and permission tracking |
-| **User Directory** | Browse all managed users, toggle status, edit profiles |
-| **Security Policies** | Create password, access, and session policies with JSON rule definitions |
-| **Audit Logging** | Filterable, paginated logs with CSV export and severity levels |
-| **Session Viewer** | View active sessions on any registered machine in real time |
-| **Global Search** | Instant search across machines, users, and roles |
-| **Alert System** | System-wide notifications for key events (new machines, deployments, etc.) |
-| **Responsive UI** | Mobile-friendly dark theme with glassmorphism, animations, and sidebar navigation |
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)
+![Flask](https://img.shields.io/badge/Flask-3.0%2B-black?logo=flask)
+![License](https://img.shields.io/badge/License-MIT-green)
+![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows-lightgrey)
 
 ---
 
-## 📂 Project Structure
+## Features
+
+- **Remote User Management** — Create and delete OS-level users on remote machines via `useradd` (Linux) / `New-LocalUser` (Windows)
+- **Machine Registry** — Register target machines, run health checks, toggle active/inactive
+- **Role-Based Access Control** — Define roles with color tags, assign permissions, organize users
+- **Security Policies** — Enforce password, access, and session policies with JSON rule definitions
+- **Audit Logging** — Filterable, paginated logs with CSV export and severity levels
+- **Session Viewer** — View active login sessions on any registered machine
+- **Dashboard Analytics** — Interactive Chart.js charts for activity timeline, OS distribution, and role breakdown
+- **Alert System** — System-wide notifications for key events
+- **Dark Cybersecurity UI** — Responsive glassmorphism theme with sidebar navigation
+
+---
+
+## Architecture
 
 ```
-iam/
-├── server/                  # Central Flask Dashboard
-│   ├── app.py               # Main Flask application (~740 lines, 30+ routes)
-│   ├── models.py            # SQLAlchemy models (Role, Permission, User, Machine, AuditLog, Policy, Alert)
+┌─────────────────────────────────────────────────────┐
+│              AEGIS-IAM DASHBOARD                    │
+│            Flask + SQLite (Port 5000)               │
+│                                                     │
+│   Dashboard · Machines · Deploy · Audit · Policies  │
+│                                                     │
+│         JWT-authenticated HTTP requests             │
+└────────────────────────┬────────────────────────────┘
+                         │
+          ┌──────────────┼──────────────┐
+          ▼              ▼              ▼
+   ┌────────────┐  ┌────────────┐  ┌────────────┐
+   │   Agent    │  │   Agent    │  │   Agent    │
+   │  (Linux)   │  │ (Windows)  │  │   (...)    │
+   │ Port 5001  │  │ Port 5001  │  │ Port 5001  │
+   └────────────┘  └────────────┘  └────────────┘
+```
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+- Python 3.10+
+- `pip` package manager
+- **Agent machines**: root (Linux) or Administrator (Windows) privileges
+
+### 1. Clone the repo
+
+```bash
+git clone https://github.com/tiwarirst/aegis-iam.git
+cd aegis-iam
+```
+
+### 2. Start the Dashboard Server
+
+```bash
+pip install -r server/requirements.txt
+python server/app.py
+```
+
+Open **http://127.0.0.1:5000** in your browser.
+
+### 3. Deploy an Agent on a Target Machine
+
+Copy `agent/` and `shared/` to the target machine, then:
+
+```bash
+pip install -r agent/requirements.txt
+
+# Linux
+sudo python agent/universal_agent.py
+
+# Windows (run as Administrator)
+python agent\universal_agent.py
+```
+
+The agent listens on **port 5001**.
+
+### 4. Register & Use
+
+1. Go to **Machines** → register the agent's IP address
+2. Go to **Deploy** → select a machine, enter credentials, click **Deploy User**
+
+---
+
+## Project Structure
+
+```
+aegis-iam/
+├── server/                   # Central Flask dashboard
+│   ├── app.py                # Flask app (30+ routes)
+│   ├── models.py             # SQLAlchemy models
 │   ├── requirements.txt
-│   ├── static/css/style.css # Dark cybersecurity theme v2.0 (~1400 lines)
-│   └── templates/
-│       ├── base.html        # Layout with sidebar, search, notifications, JS utilities
-│       ├── dashboard.html   # Analytics overview with Chart.js charts
-│       ├── machines.html    # Register & manage target machines
-│       ├── deploy.html      # Deploy / remove users with password strength meter
-│       ├── audit.html       # Paginated, filterable audit logs with CSV export
-│       ├── sessions.html    # Active sessions on a machine
-│       ├── roles.html       # Role CRUD with color picker
-│       ├── users.html       # User directory with status toggle
-│       ├── policies.html    # Security policy management
-│       └── settings.html    # System configuration & maintenance
+│   ├── static/css/style.css  # Dark theme stylesheet
+│   └── templates/            # Jinja2 HTML templates
 │
-├── agent/                   # Lightweight Python agent (deploy to any VM)
-│   ├── universal_agent.py   # OS-detecting agent with Flask API
+├── agent/                    # Lightweight agent (deploy to target VMs)
+│   ├── universal_agent.py    # Cross-platform agent with Flask API
 │   └── requirements.txt
 │
-├── shared/                  # Shared utilities used by server & agent
-│   ├── config.py            # JWT secret, token generation/verification
-│   └── utils.py             # Logging, response helpers, @require_auth decorator
+├── shared/                   # Shared code (server + agent)
+│   ├── config.py             # JWT config & token helpers
+│   └── utils.py              # Logging, auth decorator, response helpers
 │
+├── USER_MANUAL.md            # Detailed usage documentation
 └── README.md
 ```
 
 ---
 
-## 🏗️ Architecture
-
-```
-┌──────────────────────────────────────────────────────────┐
-│                  AEGIS-IAM DASHBOARD                     │
-│              Flask + SQLite (Port 5000)                   │
-│                                                          │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐ │
-│  │ Dashboard │  │ Machines │  │  Deploy  │  │  Audit   │ │
-│  │ Overview  │  │ Manager  │  │  Users   │  │   Logs   │ │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘ │
-│                       │                                  │
-│       Sends JWT-authenticated HTTP requests              │
-└───────────────────────┼──────────────────────────────────┘
-                        │
-          ┌─────────────┼─────────────┐
-          ▼             ▼             ▼
-   ┌─────────────┐ ┌─────────────┐ ┌─────────────┐
-   │ Agent (Linux)│ │Agent (Win)  │ │ Agent (...)  │
-   │  Port 5001  │ │  Port 5001  │ │  Port 5001  │
-   │  useradd    │ │ New-Local   │ │              │
-   │  userdel    │ │ Remove-Local│ │              │
-   │  auth.log   │ │ Event 4624  │ │              │
-   └─────────────┘ └─────────────┘ └─────────────┘
-```
-
----
-
-## 🚀 Quick Start
-
-### 1. Install Dependencies
-
-```bash
-pip install flask flask-sqlalchemy PyJWT requests
-```
-
-### 2. Start the Dashboard (Server)
-
-```bash
-cd iam
-python server/app.py
-```
-
-Open your browser at **http://127.0.0.1:5000**
-
-### 3. Start an Agent (on a target machine)
-
-Copy the `agent/` and `shared/` folders onto the target machine, then:
-
-```bash
-# Linux — run with sudo for useradd/userdel privileges
-sudo python agent/universal_agent.py
-
-# Windows — run as Administrator for New-LocalUser
-python agent\universal_agent.py
-```
-
-The agent starts on **port 5001** and listens for JWT-authenticated commands.
-
-### 4. Register the Machine
-
-Go to the **Machines** page on the dashboard and register the agent's IP address.
-
-### 5. Deploy a User
-
-Navigate to **Deploy / Remove User**, select the target machine, enter a username and password, and click **Deploy User**.
-
----
-
-## 🔐 Security
-
-| Feature | Implementation |
-|---|---|
-| **Authentication** | JWT tokens with shared secret key |
-| **Token Expiry** | 30-minute rolling window |
-| **Header Format** | `Authorization: Bearer <token>` |
-| **Secret Config** | `AEGIS_SECRET_KEY` environment variable (fallback to default) |
-
-> **⚠️ Production Note:** Replace the default secret key by setting the `AEGIS_SECRET_KEY` environment variable.
-
----
-
-## 📋 Agent API Endpoints
+## Agent API
 
 | Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| `GET`  | `/health` | ✗ | Health check |
-| `POST` | `/create_user` | ✓ | Create a local user `{ "username": "...", "password": "..." }` |
-| `POST` | `/delete_user` | ✓ | Delete a local user `{ "username": "..." }` |
-| `GET`  | `/sessions` | ✓ | List active sessions |
-| `GET`  | `/audit_logs` | ✓ | Fetch auth.log / Event ID 4624 |
+|--------|----------|:----:|-------------|
+| `GET`  | `/health` | — | Health check (no auth required) |
+| `POST` | `/create_user` | JWT | Create a local user account |
+| `POST` | `/delete_user` | JWT | Delete a local user account |
+| `GET`  | `/sessions` | JWT | List active login sessions |
+| `GET`  | `/audit_logs` | JWT | Fetch authentication logs |
 
 ---
 
-## 🛠️ Tech Stack
+## Security
 
-- **Python 3.10+**
-- **Flask 3.0+** — Web framework
-- **Flask-SQLAlchemy** — ORM with SQLite
-- **PyJWT** — JSON Web Tokens for server ↔ agent authentication
-- **Chart.js 4.4** — Interactive dashboard charts (CDN)
-- **Google Fonts** — Inter + JetBrains Mono
-- **subprocess** — OS user management (useradd / PowerShell)
+All server-to-agent communication is authenticated using **JWT tokens** (HS256, 30-min expiry).
 
----
+Set a custom secret key before deploying:
 
-## 🖥️ Dashboard Pages
+```bash
+export AEGIS_SECRET_KEY="your-secure-random-key"
+```
 
-| Page | URL | Description |
-|------|-----|-------------|
-| Dashboard | `/` | Analytics overview with charts, timeline, alerts, quick actions |
-| Machines | `/machines` | Register machines, health check, toggle active/inactive |
-| Deploy | `/deploy` | Deploy/remove users with password strength meter |
-| Audit | `/audit` | Paginated logs, filter by severity/event type, export CSV |
-| Sessions | `/sessions/<id>` | Active sessions on a specific machine |
-| Roles | `/roles` | Create/edit/delete roles with color tags |
-| Users | `/users` | User directory with profile editing and status toggle |
-| Policies | `/policies` | Security policy CRUD (password, access, session types) |
-| Settings | `/settings` | System config, agent deployment guide, maintenance actions |
+> **Warning:** The default secret key is for development only. Always set `AEGIS_SECRET_KEY` in production.
 
 ---
 
-## 📜 License
+## Tech Stack
 
-MIT License — built for educational and security research purposes.
+| Component | Technology |
+|-----------|------------|
+| Backend | Python, Flask, SQLAlchemy, SQLite |
+| Auth | PyJWT (HS256) |
+| Frontend | Jinja2, Chart.js, CSS (custom dark theme) |
+| Agent | Flask micro-API + subprocess (`useradd` / PowerShell) |
+
+---
+
+## Documentation
+
+See [USER_MANUAL.md](USER_MANUAL.md) for detailed setup instructions, feature walkthroughs, API reference, troubleshooting, and FAQ.
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE) for details.
