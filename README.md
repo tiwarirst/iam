@@ -59,7 +59,7 @@ Manage local user accounts on **Linux** and **Windows** machines from a single w
 ### 1. Clone the repo
 
 ```bash
-git clone https://github.com/tiwarirst/aegis-iam.git
+git clone https://github.com/tiwarirst/iam.git
 cd aegis-iam
 ```
 
