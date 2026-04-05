@@ -565,22 +565,41 @@ def audit_page():
 @app.route("/fetch_audit/<int:machine_id>")
 def fetch_audit(machine_id):
     machine = TargetMachine.query.get_or_404(machine_id)
+    logger.info(f"Fetching audit logs from {machine.hostname} ({machine.ip_address})")
+    
     success, result = _agent_request(machine.ip_address, "/audit_logs")
+    logger.debug(f"Agent response: success={success}, result={result}")
+    
     if success:
+        # Handle response format: result should have "data" key with "logs" array
         remote_logs = result.get("data", {}).get("logs", [])
+        logger.info(f"Found {len(remote_logs)} audit logs from agent")
+        
+        if not remote_logs:
+            logger.warning(f"Agent returned empty logs or no logs key. Full response: {result}")
+            flash(f"No audit logs found on {machine.hostname} or agent returned empty response.", "warning")
+            return redirect(url_for("audit_page"))
+        
         for entry in remote_logs[:20]:
+            # Extract details from different possible fields
+            details = entry.get("raw", "") or entry.get("message", "") or str(entry)
             log = AuditLog(
                 machine_id=machine_id,
                 event_type="REMOTE_AUTH",
                 severity="info",
                 actor="agent",
-                details=entry.get("raw", "") or entry.get("message", ""),
+                details=details[:500],  # Truncate for safety
             )
             db.session.add(log)
+        
         db.session.commit()
-        flash(f"Fetched {len(remote_logs)} audit entries from {machine.hostname}.", "success")
+        logger.info(f"Successfully saved {len(remote_logs)} audit logs to database")
+        flash(f"✓ Fetched {len(remote_logs)} audit entries from {machine.hostname}.", "success")
     else:
-        flash(f"Error: {result.get('message', 'Unreachable')}", "error")
+        error_msg = result.get("message", "Unknown error")
+        logger.error(f"Failed to fetch audit logs: {error_msg}")
+        flash(f"❌ Error fetching from {machine.hostname}: {error_msg}", "error")
+    
     return redirect(url_for("audit_page"))
 
 
@@ -612,6 +631,64 @@ def clear_audit():
     AuditLog.query.delete()
     db.session.commit()
     flash("All audit logs cleared.", "success")
+    return redirect(url_for("audit_page"))
+
+
+@app.route("/add_test_audit_logs")
+def add_test_audit_logs():
+    """DEBUG ENDPOINT: Add sample audit logs for testing."""
+    sample_events = [
+        {
+            "event_type": "USER_LOGIN",
+            "severity": "info",
+            "actor": "john.doe",
+            "details": "User login successful from 192.168.1.100"
+        },
+        {
+            "event_type": "FAILED_LOGIN",
+            "severity": "warning",
+            "actor": "system",
+            "details": "Failed login attempt for admin (wrong password) from 192.168.1.50"
+        },
+        {
+            "event_type": "PRIVILEGE_ESCALATION",
+            "severity": "critical",
+            "actor": "jane.smith",
+            "details": "User escalated to root privileges"
+        },
+        {
+            "event_type": "FILE_ACCESS",
+            "severity": "info",
+            "actor": "bob.wilson",
+            "details": "Accessed /etc/passwd"
+        },
+        {
+            "event_type": "CONFIG_CHANGE",
+            "severity": "warning",
+            "actor": "admin",
+            "details": "System firewall rules modified"
+        },
+    ]
+    
+    # Add test logs for the first machine
+    machine = TargetMachine.query.first()
+    if not machine:
+        flash("No machines registered. Add a machine first.", "error")
+        return redirect(url_for("machines"))
+    
+    for sample in sample_events:
+        log = AuditLog(
+            machine_id=machine.id,
+            event_type=sample["event_type"],
+            severity=sample["severity"],
+            actor=sample["actor"],
+            details=sample["details"],
+        )
+        db.session.add(log)
+    
+    db.session.commit()
+    flash(f"✓ Added {len(sample_events)} test audit logs for testing!", "success")
+    logger.info(f"Added {len(sample_events)} test audit logs")
     return redirect(url_for("audit_page"))
 
 
