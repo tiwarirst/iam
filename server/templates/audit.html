@@ -1,147 +1,223 @@
 {% extends "base.html" %}
-{% block title %}Aegis-IAM · Audit Logs{% endblock %}
-{% block page_title %}Audit Logs{% endblock %}
+{% block title %}niyanta-IAM · Compliance Audit Stream{% endblock %}
+{% block page_title %}Compliance & Audit Trail{% endblock %}
 
 {% block content %}
 
 <div class="page-header">
-    <h3>📋 Audit & Compliance</h3>
-    <div class="header-actions">
-        <a href="{{ url_for('export_audit') }}" class="btn btn-secondary btn-sm">📥 Export CSV</a>
+    <h3>
+        <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+        </svg>
+        Audit Ledger & Event Stream
+    </h3>
+    <div class="page-header-actions">
+        <a href="{{ url_for('export_audit') }}" class="btn btn-secondary btn-sm">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px; height:13px;">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Export CSV
+        </a>
         <form method="POST" action="{{ url_for('clear_audit') }}" style="display:inline;">
-            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Clear ALL audit logs? This cannot be undone.')">🗑️ Clear All</button>
+            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Security Warning: This will permanently wipe all audit log entries. Proceed?')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px; height:13px;">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+                Purge All Logs
+            </button>
         </form>
     </div>
 </div>
 
-<!-- ── Stats ──────────────────────────────────────────────────────── -->
+<!-- ── Audit Stats ───────────────────────────────────────────────── -->
 <div class="stat-grid">
     <div class="stat-card cyan">
-        <div class="label">Total Events</div>
+        <div class="stat-header">
+            <span class="label">Total Recorded Events</span>
+            <div class="stat-icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                </svg>
+            </div>
+        </div>
         <div class="value">{{ total }}</div>
-        <div class="icon-bg">📋</div>
+        <div class="stat-sub">Append-only compliance log entries</div>
     </div>
+
     <div class="stat-card green">
-        <div class="label">Current Page</div>
+        <div class="stat-header">
+            <span class="label">Ledger Page</span>
+            <div class="stat-icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/>
+                </svg>
+            </div>
+        </div>
         <div class="value">{{ page }}</div>
-        <div class="stat-sub">of {{ total_pages }} pages</div>
-        <div class="icon-bg">📄</div>
+        <div class="stat-sub">of {{ total_pages }} paginated segments</div>
     </div>
 </div>
 
-<!-- ── Fetch from Agent ───────────────────────────────────────────── -->
+<!-- ── Remote Agent Polling Section ──────────────────────────────── -->
 <div class="glass-card">
-    <h3><span class="icon">⟳</span> Fetch Remote Audit Logs</h3>
+    <div class="page-header" style="margin: 0;">
+        <h3>
+            <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+            </svg>
+            Harvest Node Auth Logs
+        </h3>
+    </div>
     {% if machines %}
     <div style="display: flex; flex-wrap: wrap; gap: 8px;">
         {% for m in machines %}
         <a href="{{ url_for('fetch_audit', machine_id=m.id) }}" class="btn btn-secondary btn-sm">
-            ⟳ {{ m.hostname }}
-            <span class="badge {{ m.os_type | lower }}">{{ m.os_type }}</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px; height:12px;">
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+            </svg>
+            Sync {{ m.hostname }}
+            <span class="badge {{ m.os_type | lower }}" style="margin-left: 4px;">{{ m.os_type }}</span>
         </a>
         {% endfor %}
     </div>
     {% else %}
-    <div class="empty-state" style="padding: 24px;">
-        <p>No machines registered. <a href="{{ url_for('machines') }}">Add one →</a></p>
+    <div class="empty-state" style="padding: 16px;">
+        <p>No compute nodes enrolled for remote log harvesting.</p>
     </div>
     {% endif %}
 </div>
 
-<!-- ── Filters ────────────────────────────────────────────────────── -->
-<div class="filters-bar">
-    <label>Filter:</label>
-    <form method="GET" action="{{ url_for('audit_page') }}" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-        <select name="severity" class="form-control" style="width: auto; padding: 6px 12px; font-size: 12px;">
-            <option value="">All Severities</option>
-            <option value="info" {% if severity_filter == 'info' %}selected{% endif %}>Info</option>
-            <option value="warning" {% if severity_filter == 'warning' %}selected{% endif %}>Warning</option>
-            <option value="critical" {% if severity_filter == 'critical' %}selected{% endif %}>Critical</option>
+<!-- ── Filter & Search Toolbar ───────────────────────────────────── -->
+<div class="glass-card" style="padding: 16px 20px;">
+    <form method="GET" action="{{ url_for('audit_page') }}" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+        <span style="font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Filters:</span>
+        <select name="severity" class="form-control" style="width: auto; height: 34px; font-size: 12px;">
+            <option value="">All Severity Levels</option>
+            <option value="info" {% if severity_filter == 'info' %}selected{% endif %}>Info (Routine)</option>
+            <option value="warning" {% if severity_filter == 'warning' %}selected{% endif %}>Warning (Review)</option>
+            <option value="critical" {% if severity_filter == 'critical' %}selected{% endif %}>Critical (High Risk)</option>
         </select>
-        <select name="event_type" class="form-control" style="width: auto; padding: 6px 12px; font-size: 12px;">
-            <option value="">All Events</option>
+        <select name="event_type" class="form-control" style="width: auto; height: 34px; font-size: 12px;">
+            <option value="">All Event Types</option>
             {% for et in event_types %}
             <option value="{{ et }}" {% if event_filter == et %}selected{% endif %}>{{ et }}</option>
             {% endfor %}
         </select>
-        <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+        <button type="submit" class="btn btn-primary btn-sm">Filter</button>
         {% if severity_filter or event_filter %}
-        <a href="{{ url_for('audit_page') }}" class="btn btn-ghost btn-sm">Clear</a>
+        <a href="{{ url_for('audit_page') }}" class="btn btn-ghost btn-sm">Reset</a>
         {% endif %}
     </form>
 </div>
 
-<!-- ── Log Table ──────────────────────────────────────────────────── -->
+<!-- ── Log Table Card ────────────────────────────────────────────── -->
 <div class="glass-card">
-    <h3>
-        <span class="icon">📋</span> Audit Event Log
-        <span style="font-size: 11px; color: var(--text-muted); font-weight: 400; margin-left: auto;">
-            Showing {{ local_logs | length }} of {{ total }} events
-        </span>
-    </h3>
-    {% if local_logs %}
-    <div class="table-filter">
-        <input type="text" id="logFilter" placeholder="🔍 Search in logs..."
-            oninput="filterTable('logFilter', 'logsTable')">
+    <div class="page-header" style="margin: 0;">
+        <h3>
+            <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="8" y1="6" x2="21" y2="6"></line>
+                <line x1="8" y1="12" x2="21" y2="12"></line>
+                <line x1="8" y1="18" x2="21" y2="18"></line>
+                <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                <line x1="3" y1="18" x2="3.01" y2="18"></line>
+            </svg>
+            Compliance Log Table
+            <span style="font-size: 11px; color: var(--text-muted); font-weight: 500;">
+                (Page {{ page }}: {{ local_logs | length }} events)
+            </span>
+        </h3>
+        <div style="width: 240px;">
+            <input type="text" id="logFilter" class="form-control" placeholder="Search rendered logs..."
+                oninput="filterTable('logFilter', 'logsTable')">
+        </div>
     </div>
+
+    {% if local_logs %}
     <div class="table-wrapper">
         <table class="data-table" id="logsTable">
             <thead>
                 <tr>
-                    <th>Timestamp</th>
-                    <th>Machine</th>
-                    <th>Event Type</th>
-                    <th>Severity</th>
-                    <th>Actor</th>
-                    <th>Details</th>
+                    <th>Timestamp (UTC)</th>
+                    <th>Node Hostname</th>
+                    <th>Operation Event</th>
+                    <th>Severity Level</th>
+                    <th>Initiating Actor</th>
+                    <th>Audit Details</th>
                 </tr>
             </thead>
             <tbody>
                 {% for log in local_logs %}
                 <tr>
-                    <td class="mono" style="font-size: 11px; white-space: nowrap;">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                    <td>{{ log.machine.hostname if log.machine else 'N/A' }}</td>
-                    <td><span class="badge active">{{ log.event_type }}</span></td>
-                    <td><span class="badge {{ log.severity }}">{{ log.severity }}</span></td>
-                    <td style="font-size: 12px;">{{ log.actor }}</td>
-                    <td style="font-size: 12px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ log.details }}">{{ log.details[:120] }}</td>
+                    <td class="mono" style="font-size: 11px; white-space: nowrap; color: var(--text-muted);">
+                        {{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}
+                    </td>
+                    <td>
+                        {% if log.machine %}
+                        <strong style="color: var(--text-bright);">{{ log.machine.hostname }}</strong>
+                        {% else %}
+                        <span style="color: var(--text-muted);">Control Plane</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="badge {{ log.event_type | lower | replace('_', '-') }}">{{ log.event_type }}</span>
+                    </td>
+                    <td>
+                        <span class="badge {{ log.severity }}">{{ log.severity }}</span>
+                    </td>
+                    <td class="mono" style="font-size: 12px; color: var(--text-secondary);">
+                        {{ log.actor }}
+                    </td>
+                    <td style="font-size: 12.5px; max-width: 400px; color: var(--text-primary);" title="{{ log.details }}">
+                        {{ log.details }}
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 
-    <!-- Pagination -->
+    <!-- Pagination Controls -->
     {% if total_pages > 1 %}
-    <div class="pagination">
+    <div style="display: flex; align-items: center; justify-content: center; gap: 6px; padding: 12px 0;">
         {% if page > 1 %}
-        <a href="{{ url_for('audit_page', page=page-1, severity=severity_filter, event_type=event_filter) }}">← Prev</a>
-        {% else %}
-        <span class="disabled">← Prev</span>
+        <a href="{{ url_for('audit_page', page=page-1, severity=severity_filter, event_type=event_filter) }}" class="btn btn-secondary btn-sm">← Prev</a>
         {% endif %}
 
         {% for p in range(1, total_pages + 1) %}
             {% if p == page %}
-            <span class="current">{{ p }}</span>
+            <span class="btn btn-primary btn-sm" style="pointer-events: none;">{{ p }}</span>
             {% elif p <= 3 or p >= total_pages - 2 or (p >= page - 1 and p <= page + 1) %}
-            <a href="{{ url_for('audit_page', page=p, severity=severity_filter, event_type=event_filter) }}">{{ p }}</a>
+            <a href="{{ url_for('audit_page', page=p, severity=severity_filter, event_type=event_filter) }}" class="btn btn-ghost btn-sm">{{ p }}</a>
             {% elif p == 4 or p == total_pages - 3 %}
-            <span style="color: var(--text-muted);">...</span>
+            <span style="color: var(--text-muted); padding: 0 4px;">...</span>
             {% endif %}
         {% endfor %}
 
         {% if page < total_pages %}
-        <a href="{{ url_for('audit_page', page=page+1, severity=severity_filter, event_type=event_filter) }}">Next →</a>
-        {% else %}
-        <span class="disabled">Next →</span>
+        <a href="{{ url_for('audit_page', page=page+1, severity=severity_filter, event_type=event_filter) }}" class="btn btn-secondary btn-sm">Next →</a>
         {% endif %}
     </div>
     {% endif %}
 
     {% else %}
     <div class="empty-state">
-        <div class="icon">📋</div>
-        <p>No audit logs stored yet. Fetch logs from an agent above, or deploy/remove users to generate events.</p>
+        <div class="empty-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+            </svg>
+        </div>
+        <p>No audit events match current criteria or no logs recorded yet.</p>
     </div>
     {% endif %}
 </div>

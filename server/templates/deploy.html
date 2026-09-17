@@ -1,118 +1,213 @@
 {% extends "base.html" %}
-{% block title %}Aegis-IAM · Deploy / Remove User{% endblock %}
-{% block page_title %}Deploy / Remove User{% endblock %}
+{% block title %}niyanta-IAM · User Provisioning{% endblock %}
+{% block page_title %}Provision & Deprovision Accounts{% endblock %}
 
 {% block content %}
 
 <div class="page-header">
-    <h3>🚀 User Deployment Center</h3>
+    <h3>
+        <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m12 15 2 2 4-4"/>
+            <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+            <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+        </svg>
+        OS Identity Orchestration
+    </h3>
 </div>
 
-<!-- ── Deploy & Remove Side by Side ───────────────────────────────── -->
+<!-- ── Deploy & Revoke Grid ──────────────────────────────────────── -->
 <div class="grid-2">
-    <!-- Deploy User -->
+    <!-- Provision Form -->
     <div class="glass-card">
-        <h3><span class="icon" style="color: var(--accent-green);">⊕</span> Deploy New User</h3>
+        <div class="page-header" style="margin: 0;">
+            <h3>
+                <svg class="card-icon" style="color: var(--accent-green);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <line x1="19" y1="8" x2="19" y2="14"/>
+                    <line x1="22" y1="11" x2="16" y2="11"/>
+                </svg>
+                Provision OS Account
+            </h3>
+        </div>
+
         {% if machines %}
         <form method="POST" action="{{ url_for('deploy_user') }}">
             <div class="form-group">
-                <label>Target Machine</label>
+                <label class="form-label">Target Infrastructure Node</label>
                 <select name="machine_id" class="form-control" required>
-                    <option value="">— Select Active Machine —</option>
+                    <option value="">— Select Target Node —</option>
                     {% for m in machines %}
                     <option value="{{ m.id }}">{{ m.hostname }} ({{ m.ip_address }}) · {{ m.os_type }}</option>
                     {% endfor %}
                 </select>
-                <div class="form-hint">Only active machines are listed</div>
+                <span class="form-hint">Commands are dispatched to this node's agent daemon</span>
             </div>
+
             <div class="form-row">
                 <div class="form-group">
-                    <label>Username</label>
-                    <input type="text" name="username" class="form-control" placeholder="e.g. jdoe" required
-                        pattern="^[a-zA-Z][a-zA-Z0-9._-]{2,31}$" title="3-32 chars, start with letter">
+                    <label class="form-label">POSIX / NT Username</label>
+                    <input type="text" name="username" class="form-control mono" placeholder="e.g. dev_jdoe" required
+                        pattern="^[a-zA-Z][a-zA-Z0-9._-]{2,31}$" title="3-32 characters, beginning with a letter">
+                    <span class="form-hint">OS-level account login name</span>
                 </div>
                 <div class="form-group">
-                    <label>Role</label>
+                    <label class="form-label">RBAC Capability Role</label>
                     <select name="role_id" class="form-control">
-                        <option value="">— No Role —</option>
+                        <option value="">— Unassigned —</option>
                         {% for r in roles %}
                         <option value="{{ r.id }}">{{ r.name | capitalize }}</option>
                         {% endfor %}
                     </select>
+                    <span class="form-hint">Dashboard permissions profile</span>
                 </div>
             </div>
+
             <div class="form-row">
                 <div class="form-group">
-                    <label>Full Name (optional)</label>
-                    <input type="text" name="full_name" class="form-control" placeholder="e.g. John Doe">
+                    <label class="form-label">User Full Name (optional)</label>
+                    <input type="text" name="full_name" class="form-control" placeholder="e.g. Johnathan Doe">
                 </div>
                 <div class="form-group">
-                    <label>Email (optional)</label>
-                    <input type="email" name="email" class="form-control" placeholder="e.g. john@company.com">
+                    <label class="form-label">Corporate Email (optional)</label>
+                    <input type="email" name="email" class="form-control" placeholder="e.g. jdoe@enterprise.internal">
                 </div>
             </div>
+
             <div class="form-group">
-                <label>Password</label>
-                <div class="password-wrapper">
-                    <input type="password" name="password" id="deployPassword" class="form-control"
-                        placeholder="Minimum 8 characters" required minlength="8"
-                        oninput="updateStrength(this.value)">
-                    <button type="button" class="password-toggle" onclick="togglePassword('deployPassword')">👁</button>
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+                    <label class="form-label" style="margin-bottom:0;">Initial Ephemeral Password</label>
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="togglePassword('deployPassword')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px; height:13px;">
+                            <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                            <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                        Toggle View
+                    </button>
                 </div>
-                <div class="password-strength">
-                    <div class="bar" id="strengthBar"></div>
+                <input type="password" name="password" id="deployPassword" class="form-control mono"
+                    placeholder="Minimum 8 characters (12+ recommended)" required minlength="8"
+                    oninput="updateStrength(this.value)">
+
+                <!-- Interactive Password Strength Meter -->
+                <div class="password-strength-container">
+                    <div class="strength-bar-track">
+                        <div class="strength-bar-fill" id="strengthBar"></div>
+                    </div>
+                    <div class="strength-text" id="strengthText">Entropy evaluation: Waiting for input</div>
                 </div>
-                <div class="form-hint" id="strengthText">Enter a password</div>
+                <span class="form-hint">Transmitted via encrypted in-memory envelope; never stored in plaintext database.</span>
             </div>
-            <button type="submit" class="btn btn-success btn-lg" style="width: 100%;">🚀 Deploy User to Machine</button>
+
+            <!-- Security Guardrails (Multi-Policy Selection) -->
+            <div class="form-group">
+                <label class="form-label">Enforce Security Guardrails (Multi-Policy Selection)</label>
+                <div style="max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 8px; background: var(--bg-input); border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+                    {% for p in policies %}
+                    <label style="display: flex; align-items: flex-start; gap: 8px; padding: 6px 8px; border-radius: var(--radius-sm); cursor: pointer; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.04);">
+                        <input type="checkbox" name="policy_ids" value="{{ p.id }}" style="margin-top: 3px; accent-color: var(--brand);">
+                        <div style="display: flex; flex-direction: column; gap: 2px;">
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <strong style="font-size: 12px; color: var(--text-bright);">{{ p.name }}</strong>
+                                <span class="badge info" style="font-size: 9.5px; padding: 1px 6px;">{{ p.policy_type }}</span>
+                            </div>
+                            <span style="font-size: 11px; color: var(--text-muted); line-height: 1.3;">{{ p.description }}</span>
+                        </div>
+                    </label>
+                    {% endfor %}
+                </div>
+                <span class="form-hint">Selected security policies will be enforced on this remote account</span>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 8px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="m12 15 2 2 4-4"/>
+                    <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+                </svg>
+                Execute Remote Account Provisioning
+            </button>
         </form>
         {% else %}
         <div class="empty-state">
-            <div class="icon">⛃</div>
-            <p>No active machines available.</p>
-            <a href="{{ url_for('machines') }}" class="btn btn-primary btn-sm">Register a Machine</a>
+            <div class="empty-icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect width="20" height="8" x="2" y="2" rx="2" ry="2"/>
+                    <rect width="20" height="8" x="2" y="14" rx="2" ry="2"/>
+                </svg>
+            </div>
+            <p>No active target nodes currently reachable. Enroll a target machine first.</p>
+            <a href="{{ url_for('machines') }}" class="btn btn-primary btn-sm">Enroll Machine Node</a>
         </div>
         {% endif %}
     </div>
 
-    <!-- Remove User -->
+    <!-- Deprovision Form -->
     <div class="glass-card">
-        <h3><span class="icon" style="color: var(--accent-red);">✕</span> Remove User</h3>
+        <div class="page-header" style="margin: 0;">
+            <h3>
+                <svg class="card-icon" style="color: var(--accent-rose);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <line x1="17" y1="11" x2="23" y2="11"/>
+                </svg>
+                Revoke / Purge OS Account
+            </h3>
+        </div>
+
         {% if all_machines %}
         <form method="POST" action="{{ url_for('remove_user') }}">
             <div class="form-group">
-                <label>Target Machine</label>
+                <label class="form-label">Target Infrastructure Node</label>
                 <select name="machine_id" class="form-control" required>
-                    <option value="">— Select Machine —</option>
+                    <option value="">— Select Target Node —</option>
                     {% for m in all_machines %}
                     <option value="{{ m.id }}">{{ m.hostname }} ({{ m.ip_address }})</option>
                     {% endfor %}
                 </select>
+                <span class="form-hint">Node where the OS user account will be excised</span>
             </div>
+
             <div class="form-group">
-                <label>Username to Remove</label>
-                <input type="text" name="username" class="form-control" placeholder="e.g. jdoe" required>
-                <div class="form-hint">The OS-level user will be permanently deleted from the machine</div>
+                <label class="form-label">Target Username to Purge</label>
+                <input type="text" name="username" class="form-control mono" placeholder="e.g. dev_jdoe" required>
+                <span class="form-hint" style="color: var(--accent-rose);">Caution: OS account, home directory, and local profile will be removed.</span>
             </div>
-            <button type="submit" class="btn btn-danger btn-lg" style="width: 100%;"
-                onclick="return confirm('This will permanently delete the user from the target machine. Continue?')">✕ Remove User from Machine</button>
+
+            <button type="submit" class="btn btn-danger" style="width: 100%;"
+                onclick="return confirm('Confirm revocation: This will permanently delete the local OS account on the target machine. Continue?')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+                Execute Remote Account Deletion
+            </button>
         </form>
 
-        <!-- Currently deployed users -->
+        <!-- Deployed Reference Table -->
         {% if managed_users %}
-        <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border-color);">
-            <h3 style="font-size: 13px; margin-bottom: 12px;"><span class="icon">👤</span> Deployed Users Reference</h3>
-            <div class="table-wrapper" style="max-height: 300px; overflow-y: auto;">
+        <div style="margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--border-subtle);">
+            <div class="page-header" style="margin: 0 0 10px 0;">
+                <h3 style="font-size: 13px;">Active Deployed Reference</h3>
+            </div>
+            <div class="table-wrapper" style="max-height: 220px; overflow-y: auto;">
                 <table class="data-table">
                     <thead>
-                        <tr><th>Username</th><th>Machine</th><th>Role</th></tr>
+                        <tr>
+                            <th>Account</th>
+                            <th>Host</th>
+                            <th>Role</th>
+                        </tr>
                     </thead>
                     <tbody>
-                        {% for u in managed_users[:10] %}
+                        {% for u in managed_users[:8] %}
                         <tr>
-                            <td class="mono">{{ u.username }}</td>
-                            <td style="font-size:12px;">{{ u.machine.hostname if u.machine else 'N/A' }}</td>
-                            <td><span class="badge {{ u.role.color if u.role else 'info' }}">{{ u.role.name if u.role else 'None' }}</span></td>
+                            <td class="mono" style="font-weight:600;">{{ u.username }}</td>
+                            <td style="font-size: 12px; color: var(--text-secondary);">{{ u.machine.hostname if u.machine else '—' }}</td>
+                            <td>
+                                <span class="badge {{ u.role.color if u.role else 'info' }}">
+                                    {{ u.role.name if u.role else 'None' }}
+                                </span>
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -123,9 +218,13 @@
 
         {% else %}
         <div class="empty-state">
-            <div class="icon">⛃</div>
-            <p>No machines available.</p>
-            <a href="{{ url_for('machines') }}" class="btn btn-primary btn-sm">Register a Machine</a>
+            <div class="empty-icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect width="20" height="8" x="2" y="2" rx="2" ry="2"/>
+                    <rect width="20" height="8" x="2" y="14" rx="2" ry="2"/>
+                </svg>
+            </div>
+            <p>No target compute machines registered.</p>
         </div>
         {% endif %}
     </div>
@@ -138,30 +237,40 @@
 function updateStrength(password) {
     const bar = document.getElementById('strengthBar');
     const text = document.getElementById('strengthText');
-    if (!bar) return;
+    const strength = checkPasswordStrength(password);
 
-    bar.className = 'bar';
-    if (password.length === 0) {
-        text.textContent = 'Enter a password';
-        return;
-    }
-
-    const level = checkPasswordStrength(password);
-    bar.classList.add(level);
-
-    const messages = {
-        'weak': '⚠ Weak — add more characters',
-        'fair': '⚡ Fair — add uppercase/numbers',
-        'good': '✓ Good password',
-        'strong': '🛡️ Strong password!'
+    const colors = {
+        'weak': '#f43f5e',
+        'fair': '#f59e0b',
+        'good': '#06b6d4',
+        'strong': '#10b981'
     };
-    text.textContent = messages[level] || 'Enter a password';
-    text.style.color = {
-        'weak': 'var(--accent-red)',
-        'fair': 'var(--accent-yellow)',
-        'good': 'var(--accent-blue)',
-        'strong': 'var(--accent-green)'
-    }[level] || 'var(--text-muted)';
+
+    const widths = {
+        'weak': '25%',
+        'fair': '50%',
+        'good': '75%',
+        'strong': '100%'
+    };
+
+    const labels = {
+        'weak': 'Low Entropy (Needs length, numbers & symbols)',
+        'fair': 'Moderate Entropy',
+        'good': 'Strong Entropy (Enterprise Grade)',
+        'strong': 'Maximum Entropy (Compliant)'
+    };
+
+    if (password.length === 0) {
+        bar.style.width = '0%';
+        bar.style.backgroundColor = 'transparent';
+        text.textContent = 'Entropy evaluation: Waiting for input';
+        text.style.color = 'var(--text-muted)';
+    } else {
+        bar.style.width = widths[strength] || '15%';
+        bar.style.backgroundColor = colors[strength] || '#f43f5e';
+        text.textContent = labels[strength] || 'Very Weak (< 8 characters)';
+        text.style.color = colors[strength] || '#f43f5e';
+    }
 }
 </script>
 {% endblock %}

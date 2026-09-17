@@ -1,60 +1,167 @@
 {% extends "base.html" %}
-{% block title %}Aegis-IAM · Dashboard{% endblock %}
-{% block page_title %}Dashboard Overview{% endblock %}
+{% block title %}niyanta-IAM · Executive Dashboard{% endblock %}
+{% block page_title %}Executive Telemetry{% endblock %}
 
 {% block content %}
 
-<!-- ── Stat Cards ─────────────────────────────────────────────────── -->
-<div class="stat-grid">
-    <div class="stat-card cyan">
-        <div class="label">Target Machines</div>
-        <div class="value">{{ machines | length }}</div>
-        <div class="stat-sub">{{ machines | selectattr('status', 'equalto', 'active') | list | length }} online</div>
-        <div class="icon-bg">⛃</div>
+<!-- ── Hero Cluster Overview Banner ──────────────────────────────── -->
+<div class="hero-banner">
+    <div class="hero-banner-content">
+        <div class="hero-banner-tag">
+            <span class="live-beacon"></span>
+            Orchestration Active
+        </div>
+        <h2>Enterprise Access & Node Governance</h2>
+        <p>
+            Unified control plane synchronizing local identity lifecycles across Linux and Windows NT infrastructure. All node communication verified via HMAC-SHA256 tokens.
+        </p>
     </div>
-    <div class="stat-card green">
-        <div class="label">Managed Users</div>
-        <div class="value">{{ users | length }}</div>
-        <div class="stat-sub">{{ users | selectattr('status', 'equalto', 'active') | list | length }} active</div>
-        <div class="icon-bg">👤</div>
-    </div>
-    <div class="stat-card purple">
-        <div class="label">Roles Defined</div>
-        <div class="value">{{ roles | length }}</div>
-        <div class="stat-sub">Access levels configured</div>
-        <div class="icon-bg">🔑</div>
-    </div>
-    <div class="stat-card yellow">
-        <div class="label">Audit Events</div>
-        <div class="value">{{ recent_logs | length }}</div>
-        <div class="stat-sub">Recent events tracked</div>
-        <div class="icon-bg">📋</div>
-    </div>
-    <div class="stat-card blue">
-        <div class="label">Active Policies</div>
-        <div class="value">{{ policies | length }}</div>
-        <div class="stat-sub">Security rules enforced</div>
-        <div class="icon-bg">🛡️</div>
-    </div>
-    <div class="stat-card red">
-        <div class="label">Alerts</div>
-        <div class="value">{{ alerts | length }}</div>
-        <div class="stat-sub">Unread notifications</div>
-        <div class="icon-bg">🔔</div>
+    <div class="hero-banner-actions">
+        <a href="{{ url_for('topology_page') }}" class="btn btn-secondary" style="border-color: rgba(99,102,241,0.4); color: #818cf8; background: rgba(99,102,241,0.12);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+            Topology Matrix
+        </a>
+        <a href="{{ url_for('deploy_page') }}" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            Provision User
+        </a>
+        <a href="{{ url_for('machines') }}" class="btn btn-secondary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>
+            Register Node
+        </a>
     </div>
 </div>
 
-<!-- ── Charts Row ─────────────────────────────────────────────────── -->
+<!-- ── Metric Cards Grid ─────────────────────────────────────────── -->
+<div class="stat-grid">
+    <!-- Target Nodes -->
+    <div class="stat-card cyan">
+        <div class="stat-header">
+            <span class="label">Target Nodes</span>
+            <div class="stat-icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect width="20" height="8" x="2" y="2" rx="2" ry="2"/>
+                    <rect width="20" height="8" x="2" y="14" rx="2" ry="2"/>
+                    <line x1="6" x2="6.01" y1="6" y2="6"/>
+                    <line x1="6" x2="6.01" y1="18" y2="18"/>
+                </svg>
+            </div>
+        </div>
+        <div class="value">{{ machines | length }}</div>
+        <div class="stat-sub">
+            <span style="color: var(--accent-green); font-weight:600;">{{ machines | selectattr('status', 'equalto', 'active') | list | length }}</span> connected & healthy
+        </div>
+    </div>
+
+    <!-- Managed Users -->
+    <div class="stat-card green">
+        <div class="stat-header">
+            <span class="label">Managed Users</span>
+            <div class="stat-icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+            </div>
+        </div>
+        <div class="value">{{ users | length }}</div>
+        <div class="stat-sub">
+            <span style="color: var(--accent-green); font-weight:600;">{{ users | selectattr('status', 'equalto', 'active') | list | length }}</span> active OS identities
+        </div>
+    </div>
+
+    <!-- Defined Roles -->
+    <div class="stat-card purple">
+        <div class="stat-header">
+            <span class="label">Configured Roles</span>
+            <div class="stat-icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="m21 2-2 2m-6 6a5 5 0 1 1-7.07-7.07A5 5 0 0 1 13 10L21 2Z"/>
+                    <path d="m15 7 2 2"/>
+                    <path d="m18 10 2 2"/>
+                </svg>
+            </div>
+        </div>
+        <div class="value">{{ roles | length }}</div>
+        <div class="stat-sub">Granular capability tiers</div>
+    </div>
+
+    <!-- Audit Events -->
+    <div class="stat-card yellow">
+        <div class="stat-header">
+            <span class="label">Audit Ledger</span>
+            <div class="stat-icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                </svg>
+            </div>
+        </div>
+        <div class="value">{{ recent_logs | length }}</div>
+        <div class="stat-sub">Compliance event entries</div>
+    </div>
+
+    <!-- Active Policies -->
+    <div class="stat-card blue">
+        <div class="stat-header">
+            <span class="label">Active Policies</span>
+            <div class="stat-icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    <path d="M12 8v4"/>
+                    <path d="M12 16h.01"/>
+                </svg>
+            </div>
+        </div>
+        <div class="value">{{ policies | length }}</div>
+        <div class="stat-sub">Rule guardrails enforced</div>
+    </div>
+
+    <!-- System Alerts -->
+    <div class="stat-card red">
+        <div class="stat-header">
+            <span class="label">System Alerts</span>
+            <div class="stat-icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
+                    <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
+                </svg>
+            </div>
+        </div>
+        <div class="value">{{ alerts | length }}</div>
+        <div class="stat-sub">Pending notifications</div>
+    </div>
+</div>
+
+<!-- ── Charts Grid ───────────────────────────────────────────────── -->
 <div class="grid-2">
+    <!-- Activity Velocity -->
     <div class="glass-card">
-        <h3><span class="icon">📊</span> Activity (Last 7 Days)</h3>
+        <h3>
+            <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+            </svg>
+            Identity Operations Velocity (Last 7 Days)
+        </h3>
         <div class="chart-container">
             <canvas id="activityChart"></canvas>
         </div>
     </div>
+
+    <!-- Cluster Distribution -->
     <div class="glass-card">
-        <h3><span class="icon">🖥️</span> Infrastructure Overview</h3>
-        <div class="grid-2" style="gap: 12px;">
+        <h3>
+            <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
+                <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
+            </svg>
+            Cluster Topology & Role Allocation
+        </h3>
+        <div class="grid-2" style="gap: 16px;">
             <div class="chart-container chart-container-sm">
                 <canvas id="osChart"></canvas>
             </div>
@@ -65,32 +172,53 @@
     </div>
 </div>
 
-<!-- ── Machines & Activity Timeline ───────────────────────────────── -->
+<!-- ── Target Nodes & Live Activity Feeds ─────────────────────────── -->
 <div class="grid-2">
-    <!-- Recent Machines -->
+    <!-- Registered Nodes -->
     <div class="glass-card">
-        <h3>
-            <span class="icon">⛃</span> Registered Machines
-            <a href="{{ url_for('machines') }}" class="btn btn-ghost btn-sm" style="margin-left:auto;">View All →</a>
-        </h3>
+        <div class="page-header" style="margin: 0;">
+            <h3>
+                <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect width="20" height="8" x="2" y="2" rx="2" ry="2"/>
+                    <rect width="20" height="8" x="2" y="14" rx="2" ry="2"/>
+                </svg>
+                Registered Nodes
+            </h3>
+            <a href="{{ url_for('machines') }}" class="btn btn-ghost btn-sm">Manage Nodes →</a>
+        </div>
+
         {% if machines %}
         <div class="table-wrapper">
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th>Hostname</th>
-                        <th>IP Address</th>
-                        <th>OS</th>
+                        <th>Node Hostname</th>
+                        <th>Network Address</th>
+                        <th>Architecture</th>
                         <th>Status</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for m in machines[:6] %}
                     <tr>
-                        <td><strong>{{ m.hostname }}</strong></td>
-                        <td class="mono">{{ m.ip_address }}</td>
-                        <td><span class="badge {{ m.os_type | lower }}">{{ m.os_type }}</span></td>
-                        <td><span class="badge {{ m.status }}">{{ m.status }}</span></td>
+                        <td>
+                            <strong style="color: var(--text-bright);">{{ m.hostname }}</strong>
+                        </td>
+                        <td>
+                            <span class="copy-badge" onclick="copyToClipboard('{{ m.ip_address }}', 'IP Address')" title="Click to copy IP">
+                                <span>{{ m.ip_address }}</span>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+                                    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+                                </svg>
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge {{ m.os_type | lower }}">{{ m.os_type }}</span>
+                        </td>
+                        <td>
+                            <span class="badge {{ m.status }}">{{ m.status }}</span>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -98,67 +226,54 @@
         </div>
         {% else %}
         <div class="empty-state">
-            <div class="icon">⛃</div>
-            <p>No machines registered yet.</p>
-            <a href="{{ url_for('machines') }}" class="btn btn-primary btn-sm">Add Machine</a>
+            <div class="empty-icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect width="20" height="8" x="2" y="2" rx="2" ry="2"/>
+                    <rect width="20" height="8" x="2" y="14" rx="2" ry="2"/>
+                </svg>
+            </div>
+            <p>No target compute nodes currently enrolled in this cluster.</p>
+            <a href="{{ url_for('machines') }}" class="btn btn-primary btn-sm">Enroll First Machine</a>
         </div>
         {% endif %}
     </div>
 
-    <!-- Activity Timeline -->
+    <!-- Live Compliance Activity Feed -->
     <div class="glass-card">
-        <h3>
-            <span class="icon">📋</span> Recent Activity
-            <a href="{{ url_for('audit_page') }}" class="btn btn-ghost btn-sm" style="margin-left:auto;">View All →</a>
-        </h3>
+        <div class="page-header" style="margin: 0;">
+            <h3>
+                <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                </svg>
+                Audit Stream
+            </h3>
+            <a href="{{ url_for('audit_page') }}" class="btn btn-ghost btn-sm">Full Ledger →</a>
+        </div>
+
         {% if recent_logs %}
         <div class="timeline">
-            {% for log in recent_logs[:8] %}
+            {% for log in recent_logs[:6] %}
             <div class="timeline-item {% if log.severity == 'warning' %}warning{% elif log.severity == 'critical' %}critical{% else %}success{% endif %}">
-                <div class="tl-time">{{ log.timestamp.strftime('%b %d, %H:%M') }}</div>
-                <div class="tl-content">{{ log.details[:100] }}</div>
-                <span class="badge {{ log.event_type | lower | replace('_', '-') }} tl-badge" style="margin-top:4px;">{{ log.event_type }}</span>
+                <div class="tl-time">{{ log.timestamp.strftime('%b %d, %H:%M:%S UTC') }}</div>
+                <div class="tl-content">{{ log.details }}</div>
+                <div style="display:flex; align-items:center; gap:6px; margin-top:4px;">
+                    <span class="badge {{ log.event_type | lower | replace('_', '-') }} tl-badge">{{ log.event_type }}</span>
+                    {% if log.machine %}
+                    <span style="font-size:11px; color:var(--text-muted);">on {{ log.machine.hostname }}</span>
+                    {% endif %}
+                </div>
             </div>
             {% endfor %}
         </div>
         {% else %}
         <div class="empty-state">
-            <div class="icon">📋</div>
-            <p>No audit events recorded yet.</p>
-        </div>
-        {% endif %}
-    </div>
-</div>
-
-<!-- ── Quick Actions & Alerts ─────────────────────────────────────── -->
-<div class="grid-2">
-    <div class="glass-card">
-        <h3><span class="icon">⚡</span> Quick Actions</h3>
-        <div style="display: flex; flex-wrap: wrap; gap: 10px;">
-            <a href="{{ url_for('deploy_page') }}" class="btn btn-primary">🚀 Deploy User</a>
-            <a href="{{ url_for('machines') }}" class="btn btn-secondary">⛃ Add Machine</a>
-            <a href="{{ url_for('check_all_machines') }}" class="btn btn-success btn-sm">🏥 Health Check All</a>
-            <a href="{{ url_for('export_audit') }}" class="btn btn-secondary btn-sm">📥 Export Logs</a>
-            <a href="{{ url_for('roles_page') }}" class="btn btn-secondary btn-sm">🔑 Manage Roles</a>
-            <a href="{{ url_for('policies_page') }}" class="btn btn-secondary btn-sm">🛡️ Policies</a>
-        </div>
-    </div>
-
-    <div class="glass-card">
-        <h3><span class="icon">🔔</span> Recent Alerts</h3>
-        {% if alerts %}
-        {% for a in alerts %}
-        <div style="padding: 10px 0; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 10px;">
-            <span class="badge {{ a.severity }}">{{ a.severity }}</span>
-            <div>
-                <div style="font-size: 13px; font-weight: 600;">{{ a.title }}</div>
-                <div style="font-size: 11px; color: var(--text-muted);">{{ a.created_at.strftime('%b %d, %H:%M') }} · {{ a.source }}</div>
+            <div class="empty-icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                </svg>
             </div>
-        </div>
-        {% endfor %}
-        {% else %}
-        <div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">
-            All clear — no pending alerts.
+            <p>No audit records logged yet. Operations will stream here in real time.</p>
         </div>
         {% endif %}
     </div>
@@ -168,106 +283,199 @@
 
 {% block scripts %}
 <script>
-    // Fetch stats for charts
+    // Fetch telemetry metrics for Chart.js
     fetch('/api/stats')
         .then(r => r.json())
         .then(data => {
-            // Activity Chart
-            const actCtx = document.getElementById('activityChart');
-            if (actCtx) {
-                new Chart(actCtx.getContext('2d'), {
+            // Activity Line Chart with Smooth Splines and Gradient Fill
+            const actCanvas = document.getElementById('activityChart');
+            if (actCanvas) {
+                const ctx = actCanvas.getContext('2d');
+                const gradient = ctx.createLinearGradient(0, 0, 0, 240);
+                gradient.addColorStop(0, 'rgba(99, 102, 241, 0.35)');
+                gradient.addColorStop(1, 'rgba(99, 102, 241, 0.00)');
+
+                new Chart(ctx, {
                     type: 'line',
                     data: {
                         labels: data.activity.labels,
                         datasets: [{
-                            label: 'Events',
+                            label: 'Security Operations',
                             data: data.activity.data,
-                            borderColor: '#00f0ff',
-                            backgroundColor: 'rgba(0, 240, 255, 0.08)',
+                            borderColor: '#6366f1',
+                            backgroundColor: gradient,
                             fill: true,
-                            tension: 0.4,
-                            pointBackgroundColor: '#00f0ff',
-                            pointBorderColor: '#00f0ff',
+                            tension: 0.38,
+                            pointBackgroundColor: '#818cf8',
+                            pointBorderColor: '#080b11',
+                            pointBorderWidth: 2,
                             pointRadius: 4,
                             pointHoverRadius: 6,
-                            borderWidth: 2,
+                            borderWidth: 2.5,
                         }]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
+                        interaction: {
+                            intersect: false,
+                            mode: 'index',
+                        },
                         plugins: {
                             legend: { display: false },
+                            tooltip: {
+                                backgroundColor: 'rgba(15, 20, 32, 0.95)',
+                                borderColor: 'rgba(255, 255, 255, 0.1)',
+                                borderWidth: 1,
+                                padding: 10,
+                                titleFont: { family: 'Plus Jakarta Sans', size: 12, weight: '600' },
+                                bodyFont: { family: 'Plus Jakarta Sans', size: 12 },
+                                cornerRadius: 8,
+                                displayColors: false
+                            }
                         },
                         scales: {
                             x: {
                                 grid: { color: 'rgba(255,255,255,0.04)' },
-                                ticks: { color: '#6b7280', font: { size: 11 } },
+                                ticks: { color: '#64748b', font: { family: 'Plus Jakarta Sans', size: 11 } },
+                                border: { display: false }
                             },
                             y: {
                                 beginAtZero: true,
                                 grid: { color: 'rgba(255,255,255,0.04)' },
-                                ticks: { color: '#6b7280', font: { size: 11 }, stepSize: 1 },
+                                ticks: { color: '#64748b', font: { family: 'Plus Jakarta Sans', size: 11 }, stepSize: 1 },
+                                border: { display: false }
                             }
                         }
                     }
                 });
             }
 
-            // OS Distribution Chart
-            const osCtx = document.getElementById('osChart');
-            if (osCtx) {
-                new Chart(osCtx.getContext('2d'), {
+            // Palette Generator with Golden-Ratio Angle Distribution for Arbitrary Count
+            function getDistinctPalette(count) {
+                const curated = [
+                    '#6366f1', '#06b6d4', '#10b981', '#f59e0b',
+                    '#f43f5e', '#8b5cf6', '#3b82f6', '#ec4899',
+                    '#14b8a6', '#eab308', '#a855f7', '#f97316'
+                ];
+                if (count <= curated.length) return curated.slice(0, count);
+                const result = [...curated];
+                for (let i = curated.length; i < count; i++) {
+                    const hue = Math.round((i * 137.5) % 360);
+                    result.push(`hsl(${hue}, 70%, 60%)`);
+                }
+                return result;
+            }
+
+            // OS Distribution Doughnut Chart
+            const osCanvas = document.getElementById('osChart');
+            if (osCanvas) {
+                const osKeys = Object.keys(data.os_distribution || {});
+                const osVals = Object.values(data.os_distribution || {});
+                const hasOsData = osVals.some(v => v > 0);
+
+                const osLabels = hasOsData ? osKeys : ['No Enrolled Nodes'];
+                const osDataValues = hasOsData ? osVals : [1];
+                const osColors = hasOsData ? getDistinctPalette(osKeys.length) : ['rgba(255, 255, 255, 0.08)'];
+
+                new Chart(osCanvas.getContext('2d'), {
                     type: 'doughnut',
                     data: {
-                        labels: Object.keys(data.os_distribution),
+                        labels: osLabels,
                         datasets: [{
-                            data: Object.values(data.os_distribution),
-                            backgroundColor: ['#f7931a', '#3b82f6'],
-                            borderWidth: 0,
-                            hoverOffset: 8,
+                            data: osDataValues,
+                            backgroundColor: osColors,
+                            borderColor: '#121826',
+                            borderWidth: 3,
+                            hoverOffset: hasOsData ? 6 : 0,
                         }]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        cutout: '65%',
+                        cutout: '72%',
                         plugins: {
                             legend: {
                                 position: 'bottom',
-                                labels: { color: '#9ca3af', font: { size: 11 }, padding: 12 }
+                                labels: {
+                                    color: '#94a3b8',
+                                    font: { family: 'Plus Jakarta Sans', size: 11 },
+                                    boxWidth: 10,
+                                    padding: 10
+                                }
                             },
-                            title: { display: true, text: 'OS Distribution', color: '#6b7280', font: { size: 11 } }
+                            title: {
+                                display: true,
+                                text: 'Platform OS Breakdown',
+                                color: '#64748b',
+                                font: { family: 'Plus Jakarta Sans', size: 11.5, weight: '600' },
+                                padding: { bottom: 10 }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        if (!hasOsData) return ' No compute nodes enrolled';
+                                        return ` ${context.label}: ${context.raw} node(s)`;
+                                    }
+                                }
+                            }
                         }
                     }
                 });
             }
 
-            // Role Distribution Chart
-            const roleCtx = document.getElementById('roleChart');
-            if (roleCtx) {
-                const roleColors = ['#ef4444', '#8b5cf6', '#00f0ff', '#f59e0b', '#10b981', '#3b82f6'];
-                new Chart(roleCtx.getContext('2d'), {
+            // Role Allocation Doughnut Chart
+            const roleCanvas = document.getElementById('roleChart');
+            if (roleCanvas) {
+                const roleKeys = Object.keys(data.role_counts || {});
+                const roleVals = Object.values(data.role_counts || {});
+                const hasRoleData = roleVals.some(v => v > 0);
+
+                const roleLabels = hasRoleData ? roleKeys.map(r => r.toUpperCase()) : ['No Assigned Roles'];
+                const roleDataValues = hasRoleData ? roleVals : [1];
+                const roleColors = hasRoleData ? getDistinctPalette(roleKeys.length) : ['rgba(255, 255, 255, 0.08)'];
+
+                new Chart(roleCanvas.getContext('2d'), {
                     type: 'doughnut',
                     data: {
-                        labels: Object.keys(data.role_counts),
+                        labels: roleLabels,
                         datasets: [{
-                            data: Object.values(data.role_counts),
-                            backgroundColor: roleColors.slice(0, Object.keys(data.role_counts).length),
-                            borderWidth: 0,
-                            hoverOffset: 8,
+                            data: roleDataValues,
+                            backgroundColor: roleColors,
+                            borderColor: '#121826',
+                            borderWidth: 3,
+                            hoverOffset: hasRoleData ? 6 : 0,
                         }]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        cutout: '65%',
+                        cutout: '72%',
                         plugins: {
                             legend: {
                                 position: 'bottom',
-                                labels: { color: '#9ca3af', font: { size: 11 }, padding: 12 }
+                                labels: {
+                                    color: '#94a3b8',
+                                    font: { family: 'Plus Jakarta Sans', size: 11 },
+                                    boxWidth: 10,
+                                    padding: 10
+                                }
                             },
-                            title: { display: true, text: 'Users per Role', color: '#6b7280', font: { size: 11 } }
+                            title: {
+                                display: true,
+                                text: 'Users by RBAC Role',
+                                color: '#64748b',
+                                font: { family: 'Plus Jakarta Sans', size: 11.5, weight: '600' },
+                                padding: { bottom: 10 }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        if (!hasRoleData) return ' No user identities assigned to roles';
+                                        return ` ${context.label}: ${context.raw} identity(ies)`;
+                                    }
+                                }
+                            }
                         }
                     }
                 });

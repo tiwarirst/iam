@@ -1,5 +1,5 @@
 """
-Aegis-IAM — Shared Utility Functions
+niyanta-IAM — Shared Utility Functions
 """
 
 import logging

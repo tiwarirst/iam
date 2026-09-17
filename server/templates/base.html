@@ -3,94 +3,231 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Aegis-IAM — Cross-Platform Identity & Access Management Dashboard">
-    <title>{% block title %}Aegis-IAM{% endblock %}</title>
+    <meta name="description" content="niyanta-IAM — Distributed Cross-Platform Identity & Access Management Control Plane">
+    <title>{% block title %}niyanta-IAM{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
-    <!-- ── Mobile Menu Toggle ───────────────────────────────────────── -->
-    <button class="mobile-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')" aria-label="Toggle menu">☰</button>
+    <!-- ── Mobile Sidebar Overlay Backdrop ───────────────────────────── -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
 
-    <!-- ── Sidebar ──────────────────────────────────────────────────── -->
+    <!-- ── Sidebar Navigation ───────────────────────────────────────── -->
     <aside class="sidebar" id="sidebar">
+        <!-- Brand Header -->
         <div class="sidebar-brand">
-            <div class="logo">A</div>
-            <div>
-                <h1>AEGIS-IAM</h1>
-                <div class="version">v2.0 · Security Dashboard</div>
+            <div class="brand-icon-wrapper">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    <path d="m9 12 2 2 4-4"/>
+                </svg>
+            </div>
+            <div class="brand-title-group">
+                <h1>
+                    niyanta-IAM
+                    <span class="brand-badge">v2.0</span>
+                </h1>
+                <div class="brand-sub">Enterprise Security Plane</div>
             </div>
         </div>
 
+        <!-- Navigation Links -->
         <nav class="sidebar-nav">
-            <div class="nav-section-title">Overview</div>
+            <div class="nav-section-title">Telemetry & Overview</div>
             <a href="{{ url_for('dashboard') }}" class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
-                <span class="icon">⊞</span> Dashboard
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect width="7" height="9" x="3" y="3" rx="1"/>
+                    <rect width="7" height="5" x="14" y="3" rx="1"/>
+                    <rect width="7" height="9" x="14" y="12" rx="1"/>
+                    <rect width="7" height="5" x="3" y="16" rx="1"/>
+                </svg>
+                <span>Dashboard</span>
             </a>
 
-            <div class="nav-section-title">Management</div>
+            <a href="{{ url_for('topology_page') }}" class="nav-link {% if request.endpoint == 'topology_page' %}active{% endif %}">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="18" cy="5" r="3"/>
+                    <circle cx="6" cy="12" r="3"/>
+                    <circle cx="18" cy="19" r="3"/>
+                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                </svg>
+                <span>Topology Graph</span>
+                <span class="badge-count" style="background: rgba(99,102,241,0.2); color: #818cf8; border-color: rgba(99,102,241,0.4);">LIVE</span>
+            </a>
+
+            <div class="nav-section-title">Infrastructure & Directory</div>
             <a href="{{ url_for('machines') }}" class="nav-link {% if request.endpoint == 'machines' %}active{% endif %}">
-                <span class="icon">⛃</span> Machines
-                {% if total_machines > 0 %}<span class="badge-count" style="background: var(--accent-blue);">{{ total_machines }}</span>{% endif %}
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect width="20" height="8" x="2" y="2" rx="2" ry="2"/>
+                    <rect width="20" height="8" x="2" y="14" rx="2" ry="2"/>
+                    <line x1="6" x2="6.01" y1="6" y2="6"/>
+                    <line x1="6" x2="6.01" y1="18" y2="18"/>
+                </svg>
+                <span>Target Nodes</span>
+                {% if total_machines > 0 %}<span class="badge-count">{{ total_machines }}</span>{% endif %}
             </a>
+
             <a href="{{ url_for('users_page') }}" class="nav-link {% if request.endpoint == 'users_page' %}active{% endif %}">
-                <span class="icon">👤</span> Users
-                {% if total_users > 0 %}<span class="badge-count" style="background: var(--accent-green);">{{ total_users }}</span>{% endif %}
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+                <span>Managed Users</span>
+                {% if total_users > 0 %}<span class="badge-count">{{ total_users }}</span>{% endif %}
             </a>
+
             <a href="{{ url_for('roles_page') }}" class="nav-link {% if request.endpoint == 'roles_page' %}active{% endif %}">
-                <span class="icon">🔑</span> Roles & Permissions
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m21 2-2 2m-6 6a5 5 0 1 1-7.07-7.07A5 5 0 0 1 13 10L21 2Z"/>
+                    <path d="m15 7 2 2"/>
+                    <path d="m18 10 2 2"/>
+                </svg>
+                <span>RBAC & Roles</span>
             </a>
 
-            <div class="nav-section-title">Actions</div>
+            <div class="nav-section-title">Orchestration</div>
             <a href="{{ url_for('deploy_page') }}" class="nav-link {% if request.endpoint == 'deploy_page' %}active{% endif %}">
-                <span class="icon">🚀</span> Deploy / Remove
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m12 15 2 2 4-4"/>
+                    <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+                    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+                </svg>
+                <span>Deploy / Revoke</span>
             </a>
 
-            <div class="nav-section-title">Security</div>
+            <div class="nav-section-title">Governance & Compliance</div>
             <a href="{{ url_for('audit_page') }}" class="nav-link {% if request.endpoint == 'audit_page' %}active{% endif %}">
-                <span class="icon">📋</span> Audit Logs
-            </a>
-            <a href="{{ url_for('policies_page') }}" class="nav-link {% if request.endpoint == 'policies_page' %}active{% endif %}">
-                <span class="icon">🛡️</span> Policies
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10 9 9 9 8 9"/>
+                </svg>
+                <span>Audit Stream</span>
             </a>
 
-            <div class="nav-section-title">System</div>
+            <a href="{{ url_for('policies_page') }}" class="nav-link {% if request.endpoint == 'policies_page' %}active{% endif %}">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    <path d="M12 8v4"/>
+                    <path d="M12 16h.01"/>
+                </svg>
+                <span>Security Policies</span>
+            </a>
+
+            <div class="nav-section-title">System Configuration</div>
             <a href="{{ url_for('settings_page') }}" class="nav-link {% if request.endpoint == 'settings_page' %}active{% endif %}">
-                <span class="icon">⚙</span> Settings
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                </svg>
+                <span>Cluster Settings</span>
             </a>
         </nav>
 
+        <!-- Sidebar Footer Status Card -->
         <div class="sidebar-footer">
-            Aegis-IAM &copy; {{ current_year }}
+            <div class="cluster-health-card">
+                <span class="live-beacon"></span>
+                <div class="cluster-health-text">
+                    <div class="cluster-health-title">
+                        <span>Core Operational</span>
+                        <span style="font-size: 10px; color: var(--accent-green);">100%</span>
+                    </div>
+                    <div class="cluster-health-desc">Encrypted JWT Channel</div>
+                </div>
+            </div>
         </div>
     </aside>
 
-    <!-- ── Main Content ─────────────────────────────────────────────── -->
+    <!-- ── Main Content Area ────────────────────────────────────────── -->
     <div class="main-content">
+        <!-- Top Navigation Bar -->
         <header class="topbar">
-            <h2>{% block page_title %}Dashboard{% endblock %}</h2>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <!-- Mobile Hamburger Button in Topbar Header -->
+                <button class="topbar-mobile-btn" onclick="toggleSidebar()" aria-label="Toggle Navigation">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
+
+                <div class="topbar-title-group">
+                    <div class="topbar-breadcrumb">
+                        <span>niyanta-IAM</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                        <span>Control Plane</span>
+                    </div>
+                    <h2>{% block page_title %}Dashboard Overview{% endblock %}</h2>
+                </div>
+            </div>
+
             <div class="topbar-actions">
+                <!-- Global Quick Search with Ctrl+K Hint -->
                 <div class="search-box">
-                    <span class="search-icon">🔍</span>
-                    <input type="text" id="globalSearch" placeholder="Search machines, users, roles..." autocomplete="off">
+                    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <input type="text" id="globalSearch" placeholder="Quick search (nodes, users, roles)..." autocomplete="off">
+                    <span class="search-kbd">⌘K</span>
                     <div class="search-results" id="searchResults"></div>
                 </div>
-                <div class="notification-bell" onclick="toggleNotifications()" data-tooltip="Notifications">
-                    🔔
-                    {% if unread_alerts > 0 %}
-                    <span class="bell-badge">{{ unread_alerts }}</span>
-                    {% endif %}
+
+                <!-- Notification Bell & Popover Wrapper -->
+                <div class="notifications-wrapper">
+                    <div class="notification-bell" id="notificationBellBtn" onclick="toggleNotifications()" title="Cluster Notifications">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
+                            <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
+                        </svg>
+                        {% if unread_alerts and unread_alerts > 0 %}
+                        <span class="bell-badge" id="globalAlertBadge">{{ unread_alerts }}</span>
+                        {% else %}
+                        <span class="bell-badge" id="globalAlertBadge" style="display: none;">0</span>
+                        {% endif %}
+                    </div>
+
+                    <!-- Interactive Notifications Popover Drawer -->
+                    <div class="notifications-popover" id="notificationsPopover">
+                        <div class="notifications-header">
+                            <h4>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px; height:15px; color:var(--brand);">
+                                    <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
+                                </svg>
+                                System Notifications
+                            </h4>
+                            <button type="button" onclick="markAllAlertsRead()">Mark all as read</button>
+                        </div>
+                        <div class="notifications-list" id="notificationsList">
+                            <div class="notification-empty">
+                                <span>Loading notifications...</span>
+                            </div>
+                        </div>
+                        <div class="notifications-footer">
+                            <a href="{{ url_for('audit_page') }}">View Full Audit Stream →</a>
+                        </div>
+                    </div>
                 </div>
+
+                <!-- Cluster Health Status Pill -->
                 <div class="status-badge">
                     <span class="status-dot"></span>
-                    System Online
+                    Cluster Live
                 </div>
             </div>
         </header>
 
+        <!-- Dynamic Body Content -->
         <main class="page-body">
-            <!-- Flash messages -->
+            <!-- Flash Toast Notifications -->
             {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
             <div class="flash-messages" id="flashMessages">
@@ -108,114 +245,415 @@
         </main>
     </div>
 
-    <!-- ── Global JavaScript ────────────────────────────────────────── -->
+    <!-- ── Interactive Global Client Logic ───────────────────────────── -->
     <script>
-    // Auto-dismiss flash messages
-    setTimeout(() => {
-        document.querySelectorAll('.flash').forEach((el, i) => {
-            setTimeout(() => {
-                el.style.opacity = '0';
-                el.style.transform = 'translateY(-10px)';
-                setTimeout(() => el.remove(), 300);
-            }, i * 200);
-        });
-    }, 5000);
+    // Mobile Sidebar Management
+    function toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        if (sidebar && overlay) {
+            const isOpen = sidebar.classList.toggle('open');
+            overlay.classList.toggle('active', isOpen);
+            document.body.style.overflow = isOpen ? 'hidden' : '';
+        }
+    }
 
-    // Global Search
+    function closeSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        if (sidebar) sidebar.classList.remove('open');
+        if (overlay) overlay.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    // Standardized Global Modal Paradigm
+    window.openModal = function(modalId) {
+        const modal = typeof modalId === 'string' ? document.getElementById(modalId) : modalId;
+        if (modal) {
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+            // Auto focus first input
+            setTimeout(() => {
+                const firstInput = modal.querySelector('input:not([type="hidden"]), select, textarea');
+                if (firstInput) firstInput.focus();
+            }, 50);
+        }
+    };
+
+    window.closeModal = function(target) {
+        let modal = null;
+        if (typeof target === 'string') {
+            modal = document.getElementById(target);
+        } else if (target instanceof HTMLElement) {
+            modal = target.closest('.modal, .modal-backdrop, .modal-overlay') || target;
+        }
+        if (modal) {
+            modal.classList.remove('active');
+            // Only reset body overflow if no other modals remain active
+            if (!document.querySelector('.modal.active, .modal-backdrop.active, .modal-overlay.active')) {
+                document.body.style.overflow = '';
+            }
+        }
+    };
+
+    // Global Notifications Popover State
+    let notificationsLoaded = false;
+    function toggleNotifications() {
+        const popover = document.getElementById('notificationsPopover');
+        if (!popover) return;
+        const isOpen = popover.classList.toggle('active');
+        if (isOpen) {
+            loadNotifications();
+        }
+    }
+
+    function loadNotifications() {
+        const list = document.getElementById('notificationsList');
+        if (!list) return;
+        fetch('/api/alerts')
+            .then(r => r.json())
+            .then(data => {
+                const alerts = Array.isArray(data) ? data : (data.alerts || []);
+                const unreadCount = typeof data.unread_count === 'number' ? data.unread_count : alerts.filter(a => !a.is_read).length;
+                const badge = document.getElementById('globalAlertBadge');
+                if (badge) {
+                    badge.textContent = unreadCount;
+                    badge.style.display = unreadCount > 0 ? 'flex' : 'none';
+                }
+                if (alerts.length === 0) {
+                    list.innerHTML = `
+                        <div class="notification-empty">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:24px; height:24px;">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                            <span>All clear. No pending security alerts.</span>
+                        </div>
+                    `;
+                } else {
+                    list.innerHTML = alerts.map(a => `
+                        <div class="notification-item ${a.is_read ? 'read' : 'unread'}" id="alert-item-${a.id}">
+                            <div class="notification-item-content">
+                                <div class="notification-item-title">${escapeHtml(a.title)}</div>
+                                <div class="notification-item-meta">
+                                    <span class="badge ${a.severity}" style="font-size:9.5px; padding:1px 6px;">${a.severity}</span>
+                                    <span>${escapeHtml(a.source)}</span>
+                                    <span>·</span>
+                                    <span>${a.created_at}</span>
+                                </div>
+                            </div>
+                            ${!a.is_read ? `
+                            <button type="button" class="notification-item-read-btn" onclick="markAlertRead(${a.id})" title="Dismiss notification">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px;">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                            </button>` : ''}
+                        </div>
+                    `).join('');
+                }
+            })
+            .catch(() => {
+                list.innerHTML = '<div class="notification-empty"><span>Failed to load notifications</span></div>';
+            });
+    }
+
+    function markAlertRead(alertId) {
+        fetch('/api/alerts/' + alertId + '/read', { method: 'POST' })
+            .then(r => r.json())
+            .then(() => {
+                const el = document.getElementById('alert-item-' + alertId);
+                if (el) el.remove();
+                loadNotifications();
+            });
+    }
+
+    function markAllAlertsRead() {
+        fetch('/api/alerts/read_all', { method: 'POST' })
+            .then(r => r.json())
+            .then(() => {
+                loadNotifications();
+                const badge = document.getElementById('globalAlertBadge');
+                if (badge) badge.style.display = 'none';
+            });
+    }
+
+    // Global Search with Keyboard Navigation
     const searchInput = document.getElementById('globalSearch');
     const searchResults = document.getElementById('searchResults');
-    let searchTimeout;
+    let searchDebounce;
+    let selectedSearchIndex = -1;
 
-    if (searchInput) {
+    if (searchInput && searchResults) {
         searchInput.addEventListener('input', function() {
-            clearTimeout(searchTimeout);
-            const q = this.value.trim();
-            if (q.length < 2) {
+            clearTimeout(searchDebounce);
+            selectedSearchIndex = -1;
+            const query = this.value.trim();
+            if (query.length < 2) {
                 searchResults.classList.remove('active');
                 return;
             }
-            searchTimeout = setTimeout(() => {
-                fetch('/api/search?q=' + encodeURIComponent(q))
+            searchDebounce = setTimeout(() => {
+                fetch('/api/search?q=' + encodeURIComponent(query))
                     .then(r => r.json())
                     .then(data => {
-                        if (data.results.length === 0) {
-                            searchResults.innerHTML = '<div class="search-result-item"><span style="color:var(--text-muted)">No results found</span></div>';
+                        if (!data.results || data.results.length === 0) {
+                            searchResults.innerHTML = '<div class="search-result-item" style="color:var(--text-muted); padding:12px;">No matching records found</div>';
                         } else {
-                            searchResults.innerHTML = data.results.map(r =>
-                                `<a href="${r.url}" class="search-result-item">
+                            searchResults.innerHTML = data.results.map((r, index) =>
+                                `<a href="${r.url}" class="search-result-item" data-index="${index}">
                                     <span class="result-type">${r.type}</span>
                                     <div>
-                                        <div class="result-title">${r.title}</div>
-                                        <div class="result-subtitle">${r.subtitle}</div>
+                                        <div class="result-title">${escapeHtml(r.title)}</div>
+                                        <div class="result-subtitle">${escapeHtml(r.subtitle || '')}</div>
                                     </div>
                                 </a>`
                             ).join('');
                         }
                         searchResults.classList.add('active');
+                    })
+                    .catch(() => {
+                        searchResults.classList.remove('active');
                     });
-            }, 300);
+            }, 200);
         });
 
-        document.addEventListener('click', (e) => {
-            if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+        // Arrow Key & Enter Navigation for Search Palette
+        searchInput.addEventListener('keydown', function(e) {
+            const items = searchResults.querySelectorAll('.search-result-item');
+            if (!searchResults.classList.contains('active') || items.length === 0) return;
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                selectedSearchIndex = (selectedSearchIndex + 1) % items.length;
+                updateSearchSelection(items);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                selectedSearchIndex = (selectedSearchIndex - 1 + items.length) % items.length;
+                updateSearchSelection(items);
+            } else if (e.key === 'Enter' && selectedSearchIndex >= 0) {
+                e.preventDefault();
+                if (items[selectedSearchIndex]) {
+                    items[selectedSearchIndex].click();
+                }
+            } else if (e.key === 'Escape') {
                 searchResults.classList.remove('active');
+                searchInput.blur();
             }
         });
+
+        function updateSearchSelection(items) {
+            items.forEach((item, idx) => {
+                if (idx === selectedSearchIndex) {
+                    item.classList.add('selected');
+                    item.scrollIntoView({ block: 'nearest' });
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+        }
     }
 
-    // Notification toggle
-    function toggleNotifications() {
-        window.location.href = '/audit';
-    }
-
-    // Close sidebar on mobile when clicking outside
-    document.addEventListener('click', function(e) {
-        const sidebar = document.getElementById('sidebar');
-        const toggle = document.querySelector('.mobile-toggle');
-        if (window.innerWidth <= 768 && sidebar.classList.contains('open')
-            && !sidebar.contains(e.target) && !toggle.contains(e.target)) {
-            sidebar.classList.remove('open');
+    // Global Document Click & Escape Listener
+    document.addEventListener('click', (e) => {
+        // Close search if clicked outside
+        if (searchInput && searchResults && !searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+            searchResults.classList.remove('active');
+        }
+        // Close notifications popover if clicked outside
+        const notifWrapper = document.querySelector('.notifications-wrapper');
+        const popover = document.getElementById('notificationsPopover');
+        if (notifWrapper && popover && !notifWrapper.contains(e.target)) {
+            popover.classList.remove('active');
+        }
+        // Close modal when backdrop itself is clicked directly
+        if (e.target.classList && (e.target.classList.contains('modal') || e.target.classList.contains('modal-backdrop') || e.target.classList.contains('modal-overlay'))) {
+            closeModal(e.target);
         }
     });
 
-    // Table filter utility
-    function filterTable(inputId, tableId) {
-        const filter = document.getElementById(inputId).value.toLowerCase();
-        const rows = document.querySelectorAll('#' + tableId + ' tbody tr');
-        rows.forEach(row => {
-            const text = row.textContent.toLowerCase();
-            row.style.display = text.includes(filter) ? '' : 'none';
-        });
-    }
-
-    // Password strength meter
-    function checkPasswordStrength(password) {
-        let strength = 0;
-        if (password.length >= 8) strength++;
-        if (password.length >= 12) strength++;
-        if (/[A-Z]/.test(password)) strength++;
-        if (/[0-9]/.test(password)) strength++;
-        if (/[^A-Za-z0-9]/.test(password)) strength++;
-
-        const levels = ['', 'weak', 'fair', 'good', 'good', 'strong'];
-        return levels[Math.min(strength, 5)];
-    }
-
-    // Toggle password visibility
-    function togglePassword(inputId) {
-        const inp = document.getElementById(inputId);
-        inp.type = inp.type === 'password' ? 'text' : 'password';
-    }
-
-    // Color option selection
-    document.querySelectorAll('.color-option').forEach(opt => {
-        opt.addEventListener('click', function() {
-            this.closest('.color-options').querySelectorAll('.color-option').forEach(o => o.classList.remove('selected'));
-            this.classList.add('selected');
-            const radio = this.querySelector('input[type="radio"]');
-            if (radio) radio.checked = true;
-        });
+    document.addEventListener('keydown', (e) => {
+        // Ctrl+K / Cmd+K Open Search
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+            e.preventDefault();
+            if (searchInput) {
+                searchInput.focus();
+                searchInput.select();
+            }
+        }
+        // Escape closes any active modals and popovers
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal.active, .modal-backdrop.active, .modal-overlay.active').forEach(m => {
+                m.classList.remove('active');
+            });
+            document.body.style.overflow = '';
+            if (searchResults) searchResults.classList.remove('active');
+            const popover = document.getElementById('notificationsPopover');
+            if (popover) popover.classList.remove('active');
+            closeSidebar();
+        }
     });
+
+    // Enhanced 1-Click Clipboard Copy with Fallback & Inline Element Animation
+    function copyToClipboard(text, label = 'Value', element = null) {
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(onSuccess).catch(onFallback);
+        } else {
+            onFallback();
+        }
+
+        function onFallback() {
+            try {
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                textArea.style.position = "fixed";
+                textArea.style.left = "-999999px";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                document.execCommand('copy');
+                textArea.remove();
+                onSuccess();
+            } catch (err) {
+                showToast('Failed to copy to clipboard', 'error');
+            }
+        }
+
+        function onSuccess() {
+            showToast(`${label} copied to clipboard`, 'success');
+            if (element) {
+                element.classList.add('copied');
+                const origHtml = element.innerHTML;
+                element.innerHTML = `
+                    <span>Copied!</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px; height:12px;">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                `;
+                setTimeout(() => {
+                    element.innerHTML = origHtml;
+                    element.classList.remove('copied');
+                }, 1500);
+            }
+        }
+    }
+
+    // Dynamic Table Filtering with Zero-State Row
+    function filterTable(inputId, tableId) {
+        const input = document.getElementById(inputId);
+        const table = document.getElementById(tableId);
+        if (!input || !table) return;
+
+        const filter = input.value.toLowerCase().trim();
+        const tbody = table.querySelector('tbody');
+        if (!tbody) return;
+
+        const rows = tbody.querySelectorAll('tr:not(.no-results-row)');
+        let visibleCount = 0;
+
+        rows.forEach(row => {
+            // Search text excluding action buttons
+            const clone = row.cloneNode(true);
+            const actions = clone.querySelectorAll('.card-actions, .btn, form, td:last-child');
+            actions.forEach(a => a.remove());
+            const text = clone.textContent.toLowerCase();
+            const matches = text.includes(filter);
+            row.style.display = matches ? '' : 'none';
+            if (matches) visibleCount++;
+        });
+
+        // Toggle zero-state row
+        let noResultsRow = tbody.querySelector('.no-results-row');
+        if (visibleCount === 0 && filter.length > 0) {
+            if (!noResultsRow) {
+                const colCount = table.querySelectorAll('thead th').length || 6;
+                noResultsRow = document.createElement('tr');
+                noResultsRow.className = 'no-results-row';
+                noResultsRow.innerHTML = `<td colspan="${colCount}">No records matching "<strong>${escapeHtml(filter)}</strong>"</td>`;
+                tbody.appendChild(noResultsRow);
+            } else {
+                noResultsRow.style.display = '';
+                noResultsRow.querySelector('strong').textContent = filter;
+            }
+        } else if (noResultsRow) {
+            noResultsRow.style.display = 'none';
+        }
+    }
+
+    // Form In-Flight State Protection (Prevents double submits)
+    document.addEventListener('submit', function(e) {
+        const form = e.target;
+        if (form.dataset.noSpinner) return;
+        const btn = form.querySelector('button[type="submit"]');
+        if (btn && !btn.classList.contains('loading')) {
+            btn.classList.add('loading');
+            const origText = btn.innerHTML;
+            btn.innerHTML = `<span class="btn-spinner"></span> <span>Processing...</span>`;
+            // Safety timeout to re-enable if page does not redirect immediately
+            setTimeout(() => {
+                btn.classList.remove('loading');
+                btn.innerHTML = origText;
+            }, 6000);
+        }
+    });
+
+    // Helper: HTML Escaping for XSS prevention in dynamic renders
+    function escapeHtml(string) {
+        const str = String(string);
+        return str.replace(/[&<>"']/g, function(s) {
+            return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[s];
+        });
+    }
+
+    // Toast Generator with Pause on Hover
+    function showToast(message, type = 'info') {
+        let container = document.getElementById('flashMessages');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'flashMessages';
+            container.className = 'flash-messages';
+            document.body.appendChild(container);
+        }
+        const toast = document.createElement('div');
+        toast.className = `flash ${type}`;
+        toast.innerHTML = `<span>${message}</span><button class="flash-close" onclick="this.parentElement.remove()">&times;</button>`;
+        container.appendChild(toast);
+
+        let timeout = setTimeout(() => dismissToast(toast), 4000);
+        toast.addEventListener('mouseenter', () => clearTimeout(timeout));
+        toast.addEventListener('mouseleave', () => timeout = setTimeout(() => dismissToast(toast), 2000));
+    }
+
+    function dismissToast(toast) {
+        if (!toast) return;
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(-10px)';
+        setTimeout(() => toast.remove(), 250);
+    }
+
+    // Auto-dismiss rendered server flash toasts
+    setTimeout(() => {
+        document.querySelectorAll('.flash').forEach((el, i) => {
+            setTimeout(() => dismissToast(el), i * 150);
+        });
+    }, 4500);
+
+    // Common Password Evaluator
+    function checkPasswordStrength(password) {
+        let score = 0;
+        if (password.length >= 8) score++;
+        if (password.length >= 12) score++;
+        if (/[A-Z]/.test(password)) score++;
+        if (/[0-9]/.test(password)) score++;
+        if (/[^A-Za-z0-9]/.test(password)) score++;
+        const levels = ['', 'weak', 'fair', 'good', 'good', 'strong'];
+        return levels[Math.min(score, 5)];
+    }
+
+    function togglePassword(inputId) {
+        const input = document.getElementById(inputId);
+        if (input) {
+            input.type = input.type === 'password' ? 'text' : 'password';
+        }
+    }
     </script>
 
     {% block scripts %}{% endblock %}

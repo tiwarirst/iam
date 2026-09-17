@@ -1,4 +1,4 @@
-# 🛡️ Aegis-IAM — User Manual
+# 🛡️ niyanta-IAM — User Manual
 
 **Version 2.0 | Cross-Platform Identity & Access Management System**
 
@@ -52,7 +52,7 @@
 
 ## 1. Introduction
 
-**Aegis-IAM** is a centralized Identity and Access Management (IAM) system that allows administrators to manage local OS-level user accounts on remote **Linux (Ubuntu)** and **Windows (10/11)** machines from a single web dashboard.
+**niyanta-IAM** is a centralized Identity and Access Management (IAM) system that allows administrators to manage local OS-level user accounts on remote **Linux (Ubuntu)** and **Windows (10/11)** machines from a single web dashboard.
 
 ### Key Capabilities
 
@@ -71,7 +71,7 @@
 
 ```
 ┌───────────────────────────────────────────────────────────────┐
-│                   AEGIS-IAM DASHBOARD                         │
+│                 NIYANTA-IAM DASHBOARD                         │
 │                Flask + SQLite (Port 5000)                      │
 │                                                               │
 │  Dashboard │ Machines │ Deploy │ Audit │ Roles │ Policies     │
@@ -157,19 +157,19 @@ python server/app.py
 You will see output confirming the database has been initialized:
 
 ```
-[2026-02-23 10:00:00] INFO aegis-server ► Database initialised and defaults seeded.
-[2026-02-23 10:00:00] INFO aegis-server ► Starting Aegis-IAM Dashboard on http://127.0.0.1:5000
+[2026-02-23 10:00:00] INFO niyanta-server ► Database initialised and defaults seeded.
+[2026-02-23 10:00:00] INFO niyanta-server ► Starting niyanta-IAM Dashboard on http://127.0.0.1:5000
 ```
 
 **Step 4 — Open the dashboard:**
 
 Navigate to **http://127.0.0.1:5000** in your web browser.
 
-> **Note:** On first launch, the database (`server/aegis_iam.db`) is created automatically with default roles and security policies pre-seeded.
+> **Note:** On first launch, the database (`server/niyanta_iam.db`) is created automatically with default roles and security policies pre-seeded.
 
 ### 3.2 Installing the Agent on Target Machines
 
-Each remote machine that you want to manage needs the Aegis-IAM agent running.
+Each remote machine that you want to manage needs the niyanta-IAM agent running.
 
 **Step 1 — Copy files to the target machine:**
 
@@ -291,7 +291,7 @@ Displays the latest unread system alerts with severity badge, title, timestamp, 
 
 **URL:** `http://127.0.0.1:5000/machines`
 
-Machines are remote computers where the Aegis-IAM agent is running. You must register a machine before you can deploy users to it.
+Machines are remote computers where the niyanta-IAM agent is running. You must register a machine before you can deploy users to it.
 
 ### 6.1 Registering a Machine
 
@@ -456,7 +456,7 @@ Use the **🔍 Filter** input above the table to search/filter users by any colu
 
 - Click the **⏸ Disable** or **▶ Enable** button to toggle a user's dashboard status
 - This cycles between: `active` → `disabled` → `active`
-- This only updates the status in the Aegis-IAM database — it does **not** disable the OS-level account on the remote machine
+- This only updates the status in the niyanta-IAM database — it does **not** disable the OS-level account on the remote machine
 
 ---
 
@@ -468,7 +468,7 @@ Roles help organize managed users into logical groups. Each role has a color tag
 
 ### Default Roles
 
-Aegis-IAM ships with five pre-configured roles:
+niyanta-IAM ships with five pre-configured roles:
 
 | Role | Color | Description |
 |---|---|---|
@@ -581,7 +581,7 @@ Additionally, use the **🔍 text filter** input above the table for instant cli
 ### 10.4 Exporting Logs
 
 1. Click the **📥 Export CSV** button in the page header
-2. A CSV file (`aegis_audit_logs.csv`) downloads with columns:
+2. A CSV file (`niyanta_audit_logs.csv`) downloads with columns:
    - ID, Timestamp, Machine, Event Type, Severity, Actor, Details
 
 ### 10.5 Clearing Logs
@@ -743,7 +743,7 @@ Four summary cards showing total machines, managed users, roles, and active poli
 |---|---|---|
 | SERVER_PORT | 5000 | Dashboard web server port |
 | AGENT_PORT | 5001 | Default port for remote agents |
-| DATABASE | aegis_iam.db | SQLite database file |
+| DATABASE | niyanta_iam.db | SQLite database file |
 | FLASK_ENV | Debug Mode | Application environment |
 
 ### Agent Deployment Guide
@@ -826,10 +826,10 @@ The default secret key is set in `shared/config.py`. **For production use**, ove
 
 ```bash
 # Linux / macOS
-export AEGIS_SECRET_KEY="your-secure-random-key-here"
+export NIYANTA_SECRET_KEY="your-secure-random-key-here"
 
 # Windows PowerShell
-$env:AEGIS_SECRET_KEY = "your-secure-random-key-here"
+$env:NIYANTA_SECRET_KEY = "your-secure-random-key-here"
 ```
 
 > ⚠️ **Critical:** The key must be identical on the dashboard server and every agent. If they differ, all agent communication will fail with 401 Unauthorized errors.
@@ -969,7 +969,7 @@ Fetches recent authentication logs from the OS.
 
 #### "User already exists" error
 
-**Cause:** A user with that username is already registered on the selected machine in the Aegis-IAM database.
+**Cause:** A user with that username is already registered on the selected machine in the niyanta-IAM database.
 
 **Solutions:**
 1. If the user exists in the dashboard but not on the OS, remove the record first
@@ -989,8 +989,8 @@ Fetches recent authentication logs from the OS.
 **Solution:** Delete the old database file and restart the server:
 ```bash
 # Delete the old database
-rm server/aegis_iam.db        # Linux/macOS
-del server\aegis_iam.db       # Windows
+rm server/niyanta_iam.db        # Linux/macOS
+del server\niyanta_iam.db       # Windows
 
 # Restart — database is recreated automatically
 python server/app.py
@@ -1014,7 +1014,7 @@ python server/app.py
 
 ## 19. FAQ
 
-**Q: Does Aegis-IAM require internet access?**
+**Q: Does niyanta-IAM require internet access?**
 A: No. The dashboard and agents communicate over your local network. The only external resources are CDN links for Chart.js and Google Fonts in the browser (the dashboard still functions without them, just without chart rendering and custom fonts).
 
 **Q: Can I manage users on machines without an agent?**
@@ -1027,7 +1027,7 @@ A: The current version does not include dashboard login. It is designed for use 
 A: Yes. Modify `AGENT_PORT` in `shared/config.py` for the agent port. For the server port, change the `app.run(port=...)` call in `server/app.py`.
 
 **Q: Are user passwords stored in the dashboard database?**
-A: No. Passwords are sent to the agent for OS-level account creation and are never stored in the Aegis-IAM database.
+A: No. Passwords are sent to the agent for OS-level account creation and are never stored in the niyanta-IAM database.
 
 **Q: What happens if I delete a machine from the dashboard?**
 A: The machine record, its associated audit logs, and managed user records are removed from the dashboard database. The actual OS-level user accounts on the remote machine are **not** affected.
@@ -1036,12 +1036,12 @@ A: The machine record, its associated audit logs, and managed user records are r
 A: Yes. The Flask server handles concurrent requests. However, there is no multi-user access control for the dashboard itself in the current version.
 
 **Q: How do I back up the system?**
-A: Copy the `server/aegis_iam.db` file. This SQLite file contains all machines, users, roles, audit logs, policies, and alerts.
+A: Copy the `server/niyanta_iam.db` file. This SQLite file contains all machines, users, roles, audit logs, policies, and alerts.
 
 **Q: Does toggling a user's status in the User Directory disable their OS account?**
 A: No. The status toggle only affects the dashboard record. To disable an OS-level account, you would need to do so directly on the target machine.
 
 ---
 
-*Aegis-IAM v2.0 — User Manual*
+*niyanta-IAM v2.0 — User Manual*
 *Last updated: February 2026*

@@ -1,98 +1,233 @@
 {% extends "base.html" %}
-{% block title %}Aegis-IAM · Security Policies{% endblock %}
-{% block page_title %}Security Policies{% endblock %}
+{% block title %}niyanta-IAM · Security Policies{% endblock %}
+{% block page_title %}Security Governance Policies{% endblock %}
 
 {% block content %}
 
 <div class="page-header">
-    <h3>🛡️ Policy Management</h3>
+    <h3>
+        <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="M12 8v4"/>
+            <path d="M12 16h.01"/>
+        </svg>
+        Declarative Security Guardrails
+    </h3>
 </div>
 
-<!-- ── Create Policy ──────────────────────────────────────────────── -->
+<!-- ── Define Policy ──────────────────────────────────────────────── -->
 <div class="glass-card">
-    <h3><span class="icon">⊕</span> Create New Policy</h3>
-    <form method="POST" action="{{ url_for('add_policy') }}">
+    <div class="page-header" style="margin: 0;">
+        <h3>
+            <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            Author Security Policy
+        </h3>
+    </div>
+    <form method="POST" action="{{ url_for('add_policy') }}" id="policyForm">
         <div class="form-row">
             <div class="form-group">
-                <label>Policy Name</label>
-                <input type="text" name="name" class="form-control" placeholder="e.g. MFA Requirement" required>
+                <label class="form-label" for="policyName">Policy Title</label>
+                <input type="text" name="name" id="policyName" class="form-control" placeholder="e.g. Mandatory Password Entropy Rule" required>
+                <span class="form-hint">Descriptive policy rule name</span>
             </div>
             <div class="form-group">
-                <label>Policy Type</label>
-                <select name="policy_type" class="form-control">
-                    <option value="password">🔒 Password Policy</option>
-                    <option value="access">🚪 Access Control</option>
-                    <option value="session">⏱️ Session Policy</option>
+                <label class="form-label" for="policyType">Governance Domain</label>
+                <select name="policy_type" id="policyType" class="form-control">
+                    <option value="password">Password Complexity & Entropy</option>
+                    <option value="access">Access Control & Host Filtering</option>
+                    <option value="session">Session Lifetime & Concurrency</option>
                 </select>
+                <span class="form-hint">Enforcement category</span>
             </div>
         </div>
         <div class="form-group">
-            <label>Description</label>
-            <input type="text" name="description" class="form-control" placeholder="Brief description of this policy">
+            <label class="form-label" for="policyDesc">Policy Objective Description</label>
+            <input type="text" name="description" id="policyDesc" class="form-control" placeholder="Brief technical statement of requirements">
         </div>
         <div class="form-group">
-            <label>Rules (JSON)</label>
-            <textarea name="rules" class="form-control" rows="4" placeholder='{"min_length": 12, "require_uppercase": true, "max_age_days": 90}'>{}</textarea>
-            <div class="form-hint">Define policy rules in JSON format. Examples: min_length, require_mfa, timeout_minutes, max_sessions</div>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 6px;">
+                <label class="form-label" for="policyRules" style="margin-bottom:0;">
+                    Rule Constraints (JSON Schema)
+                    <span id="jsonValidBadge" class="badge active" style="display:none; font-size:10px; margin-left:8px;">Valid JSON</span>
+                </label>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="formatPolicyJson()" style="padding: 2px 8px; font-size: 11px;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px; height:12px;">
+                        <polyline points="16 18 22 12 16 6"></polyline>
+                        <polyline points="8 6 2 12 8 18"></polyline>
+                    </svg>
+                    Format JSON
+                </button>
+            </div>
+            <textarea name="rules" id="policyRules" class="form-control mono" rows="4" placeholder='{"min_length": 12, "require_uppercase": true, "max_age_days": 90}'>{}</textarea>
+            <div id="jsonErrorMsg" style="display:none; font-size: 11.5px; color: var(--accent-rose); margin-top: 4px; font-weight: 500;"></div>
+            <span class="form-hint">Evaluated against user and session payloads prior to remote execution</span>
         </div>
-        <button type="submit" class="btn btn-primary">⊕ Create Policy</button>
+        <button type="submit" id="policySubmitBtn" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            Commit Policy Guardrail
+        </button>
     </form>
 </div>
 
-<!-- ── Policy Cards ───────────────────────────────────────────────── -->
-<div class="glass-card">
-    <h3><span class="icon">🛡️</span> All Policies ({{ policies | length }})</h3>
-</div>
+<!-- ── Configured Policies ────────────────────────────────────────── -->
+<div class="glass-card" style="background: transparent; border: none; padding: 0; box-shadow: none;">
+    <div class="page-header" style="margin-bottom: 12px;">
+        <h3>
+            <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+            Active Guardrails
+            <span style="font-size: 11px; color: var(--text-muted); font-weight: 500;">
+                ({{ policies | length }} rules configured)
+            </span>
+        </h3>
+    </div>
 
-{% if policies %}
-<div class="card-grid">
-    {% for policy in policies %}
-    <div class="mini-card" style="{% if not policy.is_active %}opacity: 0.6;{% endif %}">
-        <div class="card-title">
-            {% if policy.policy_type == 'password' %}🔒
-            {% elif policy.policy_type == 'access' %}🚪
-            {% elif policy.policy_type == 'session' %}⏱️
+    {% if policies %}
+    <div class="card-grid">
+        {% for policy in policies %}
+        <div class="mini-card" style="{% if not policy.is_active %}opacity: 0.65;{% endif %}">
+            <div class="card-title">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <strong style="color: var(--text-bright); font-size: 14px;">{{ policy.name }}</strong>
+                </div>
+                {% if policy.is_active %}
+                <span class="badge active">Active</span>
+                {% else %}
+                <span class="badge disabled">Suspended</span>
+                {% endif %}
+            </div>
+            <div class="card-desc">{{ policy.description or 'No operational scope defined.' }}</div>
+            <div class="card-meta">
+                <span class="badge info">{{ policy.policy_type }}</span>
+                <span class="badge" style="background: rgba(99,102,241,0.15); color: #818cf8; border-color: rgba(99,102,241,0.3);">
+                    {{ policy.users.count() }} Identities Bound
+                </span>
+                <span>{{ policy.created_at.strftime('%b %d, %Y') if policy.created_at else 'System Default' }}</span>
+            </div>
+
+            {% if policy.users.count() > 0 %}
+            <div style="display: flex; align-items: center; gap: 5px; flex-wrap: wrap; padding: 4px 0;">
+                <span style="font-size: 10px; color: var(--text-muted); font-weight: 600;">ENFORCED ON:</span>
+                {% for u in policy.users.all() %}
+                <a href="{{ url_for('users_page') }}" class="mono" style="font-size: 10.5px; background: var(--bg-surface); padding: 2px 7px; border-radius: var(--radius-xs); border: 1px solid var(--border-subtle); color: var(--text-primary); text-decoration: none;">
+                    👤 {{ u.username }}
+                </a>
+                {% endfor %}
+            </div>
             {% endif %}
-            {{ policy.name }}
-            {% if policy.is_active %}
-            <span class="badge active" style="font-size: 9px;">Active</span>
-            {% else %}
-            <span class="badge inactive" style="font-size: 9px;">Inactive</span>
-            {% endif %}
-        </div>
-        <div class="card-desc">{{ policy.description or 'No description.' }}</div>
-        <div class="card-meta">
-            <span class="badge info">{{ policy.policy_type }}</span>
-            <span>📅 {{ policy.created_at.strftime('%b %d, %Y') if policy.created_at else 'N/A' }}</span>
-        </div>
 
-        <!-- Show rules -->
-        <div style="margin-top: 12px; padding: 10px; background: var(--bg-input); border-radius: 6px; border: 1px solid var(--border-color);">
-            <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 6px; font-weight: 700;">Rules</div>
-            <pre style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent); white-space: pre-wrap; margin: 0; max-height: 100px; overflow-y: auto;">{{ policy.rules }}</pre>
-        </div>
+            <!-- Rules JSON Container -->
+            <div style="padding: 10px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+                <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 4px; font-weight: 700;">Parameters</div>
+                <pre class="mono" style="font-size: 11px; color: #818cf8; white-space: pre-wrap; margin: 0; max-height: 80px; overflow-y: auto;">{{ policy.rules }}</pre>
+            </div>
 
-        <div class="card-actions">
-            <form method="POST" action="{{ url_for('toggle_policy', policy_id=policy.id) }}" style="display:inline;">
-                <button type="submit" class="btn btn-{% if policy.is_active %}warning{% else %}success{% endif %} btn-xs">
-                    {% if policy.is_active %}⏸ Deactivate{% else %}▶ Activate{% endif %}
-                </button>
-            </form>
-            <form method="POST" action="{{ url_for('delete_policy', policy_id=policy.id) }}" style="display:inline;">
-                <button type="submit" class="btn btn-danger btn-xs"
-                    onclick="return confirm('Delete policy \'{{ policy.name }}\'?')">🗑️ Delete</button>
-            </form>
+            <div class="card-actions">
+                <form method="POST" action="{{ url_for('toggle_policy', policy_id=policy.id) }}" style="display:inline;">
+                    <button type="submit" class="btn btn-{% if policy.is_active %}secondary{% else %}success{% endif %} btn-sm">
+                        {% if policy.is_active %}
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px; height:12px;">
+                            <rect width="4" height="16" x="6" y="4"/>
+                            <rect width="4" height="16" x="14" y="4"/>
+                        </svg>
+                        Deactivate
+                        {% else %}
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px; height:12px;">
+                            <polygon points="5 3 19 12 5 21 5 3"/>
+                        </svg>
+                        Activate
+                        {% endif %}
+                    </button>
+                </form>
+                <form method="POST" action="{{ url_for('delete_policy', policy_id=policy.id) }}" style="display:inline;">
+                    <button type="submit" class="btn btn-danger btn-sm"
+                        onclick="return confirm('Delete policy \'{{ policy.name }}\'?')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px; height:12px;">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="glass-card">
+        <div class="empty-state">
+            <div class="empty-icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+            </div>
+            <p>No security guardrails defined yet.</p>
         </div>
     </div>
-    {% endfor %}
+    {% endif %}
 </div>
-{% else %}
-<div class="glass-card">
-    <div class="empty-state">
-        <div class="icon">🛡️</div>
-        <p>No policies defined yet. Create your first security policy above.</p>
-    </div>
-</div>
-{% endif %}
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+const rulesTextarea = document.getElementById('policyRules');
+const jsonErrorMsg = document.getElementById('jsonErrorMsg');
+const jsonValidBadge = document.getElementById('jsonValidBadge');
+const policyForm = document.getElementById('policyForm');
+
+function validateRulesJson() {
+    const val = rulesTextarea.value.trim();
+    if (!val) {
+        rulesTextarea.style.borderColor = '';
+        jsonErrorMsg.style.display = 'none';
+        jsonValidBadge.style.display = 'none';
+        return true;
+    }
+    try {
+        JSON.parse(val);
+        rulesTextarea.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+        jsonErrorMsg.style.display = 'none';
+        jsonValidBadge.style.display = 'inline-flex';
+        return true;
+    } catch (err) {
+        rulesTextarea.style.borderColor = 'rgba(244, 63, 94, 0.5)';
+        jsonErrorMsg.textContent = 'Invalid JSON: ' + err.message;
+        jsonErrorMsg.style.display = 'block';
+        jsonValidBadge.style.display = 'none';
+        return false;
+    }
+}
+
+function formatPolicyJson() {
+    const val = rulesTextarea.value.trim();
+    if (!val) return;
+    try {
+        const parsed = JSON.parse(val);
+        rulesTextarea.value = JSON.stringify(parsed, null, 2);
+        validateRulesJson();
+        showToast('JSON constraints formatted', 'success');
+    } catch (err) {
+        showToast('Cannot format: Syntax error in JSON', 'error');
+        validateRulesJson();
+    }
+}
+
+rulesTextarea.addEventListener('input', validateRulesJson);
+
+policyForm.addEventListener('submit', function(e) {
+    if (!validateRulesJson()) {
+        e.preventDefault();
+        rulesTextarea.focus();
+        showToast('Please fix JSON syntax errors before committing policy', 'error');
+        return false;
+    }
+});
+</script>
 {% endblock %}

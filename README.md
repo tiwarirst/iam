@@ -1,168 +1,180 @@
-# Aegis-IAM
+# niyanta-IAM
 
-**Cross-Platform Identity & Access Management System**
+**Distributed Cross-Platform Identity & Access Management (IAM) Orchestrator**
 
-Manage local user accounts on **Linux** and **Windows** machines from a single web dashboard. A lightweight Python agent runs on each target machine and receives JWT-authenticated commands from the central Flask server.
-
-![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)
-![Flask](https://img.shields.io/badge/Flask-3.0%2B-black?logo=flask)
-![License](https://img.shields.io/badge/License-MIT-green)
-![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows-lightgrey)
+`niyanta-IAM` is a centralized Identity and Access Management control plane engineered to provision, audit, and govern local OS-level user accounts across heterogeneous infrastructure (**Linux POSIX** and **Windows NT**). Designed with an Agent-Controller topology, it abstracts operating system discrepancies and enforces uniform access governance through cryptographically authenticated execution channels.
 
 ---
 
-## Features
+## Technical Highlights
 
-- **Remote User Management** — Create and delete OS-level users on remote machines via `useradd` (Linux) / `New-LocalUser` (Windows)
-- **Machine Registry** — Register target machines, run health checks, toggle active/inactive
-- **Role-Based Access Control** — Define roles with color tags, assign permissions, organize users
-- **Security Policies** — Enforce password, access, and session policies with JSON rule definitions
-- **Audit Logging** — Filterable, paginated logs with CSV export and severity levels
-- **Session Viewer** — View active login sessions on any registered machine
-- **Dashboard Analytics** — Interactive Chart.js charts for activity timeline, OS distribution, and role breakdown
-- **Alert System** — System-wide notifications for key events
-- **Dark Cybersecurity UI** — Responsive glassmorphism theme with sidebar navigation
+- **Unified Infrastructure Abstraction**: Single control plane orchestrating native OS account subsystems (`useradd`/`chpasswd`/`userdel` on POSIX; `Microsoft.PowerShell.LocalAccounts` on Windows NT).
+- **Zero-Storage Credential Transport**: Transient credential transit—passwords pass through cryptographically signed envelopes directly to target agents for immediate ingestion, guaranteeing zero plaintext credential persistence in the controller database.
+- **Mutual HMAC-SHA256 Authentication**: All inter-service telemetry and command execution between the control plane and node agents are authenticated using sliding-window JSON Web Tokens (JWT).
+- **Granular RBAC Engine**: Fine-grained capability matrix decoupling access roles from operating system permissions, featuring custom color tagging and resource scoping.
+- **Rule-Driven Policy Engine**: Declarative JSON security policies governing password entropy requirements, account life cycles, and session thresholds.
+- **High-Fidelity Telemetry & Audit Stream**: Append-only transactional compliance logging capturing actor identity, target node, action payload, and severity vectors with streaming CSV export.
+- **Active Session Inspector**: Real-time inspection of interactive terminal and desktop sessions (`who` / `query user`) directly from remote target nodes.
 
 ---
 
-## Architecture
+## System Architecture
 
 ```
-┌─────────────────────────────────────────────────────┐
-│              AEGIS-IAM DASHBOARD                    │
-│            Flask + SQLite (Port 5000)               │
-│                                                     │
-│   Dashboard · Machines · Deploy · Audit · Policies  │
-│                                                     │
-│         JWT-authenticated HTTP requests             │
-└────────────────────────┬────────────────────────────┘
-                         │
-          ┌──────────────┼──────────────┐
-          ▼              ▼              ▼
-   ┌────────────┐  ┌────────────┐  ┌────────────┐
-   │   Agent    │  │   Agent    │  │   Agent    │
-   │  (Linux)   │  │ (Windows)  │  │   (...)    │
-   │ Port 5001  │  │ Port 5001  │  │ Port 5001  │
-   └────────────┘  └────────────┘  └────────────┘
+                                 ┌────────────────────────────────────────┐
+                                 │       niyanta-IAM Control Plane        │
+                                 │        Flask + SQLAlchemy ORM          │
+                                 │       Port: 5000 (Controller)          │
+                                 └───────────────────┬────────────────────┘
+                                                     │
+                             HMAC-SHA256 Signed JWT  │ REST API (JSON)
+                             Sliding Window Handshake│ Port: 5001
+                                                     │
+                     ┌───────────────────────────────┼───────────────────────────────┐
+                     ▼                               ▼                               ▼
+       ┌───────────────────────────┐   ┌───────────────────────────┐   ┌───────────────────────────┐
+       │     Linux Target Node     │   │    Windows Target Node    │   │      Secondary Node       │
+       │ ┌───────────────────────┐ │   │ ┌───────────────────────┐ │   │ ┌───────────────────────┐ │
+       │ │   Universal Agent     │ │   │ │   Universal Agent     │ │   │ │   Universal Agent     │ │
+       │ └───────────┬───────────┘ │   │ └───────────┬───────────┘ │   │ └───────────┬───────────┘ │
+       │             │ (POSIX API) │   │             │ (PowerShell)│   │             │             │
+       │             ▼             │   │             ▼             │   │             ▼             │
+       │   /usr/sbin/useradd       │   │     New-LocalUser         │   │      OS Account Core      │
+       │   /usr/sbin/userdel       │   │     Remove-LocalUser      │   │                           │
+       │   /var/log/auth.log       │   │     query user (Console)  │   │                           │
+       └───────────────────────────┘   └───────────────────────────┘   └───────────────────────────┘
+```
+
+### Component Topology
+
+1. **Orchestration Server (`server/`)**: Central Flask application hosting administrative UI endpoints, role definitions, security policies, and SQLite persistence.
+2. **Universal Node Agent (`agent/`)**: Daemon running on managed compute instances exposing an authenticated REST micro-API executing native platform commands.
+3. **Shared Foundation (`shared/`)**: Cryptographic primitives, token minting/verification routines, and structured stdout logger pipelines.
+
+---
+
+## Repository Structure
+
+```
+iam/
+├── server/
+│   ├── app.py                  # Control plane router & administrative endpoints (30+ routes)
+│   ├── models.py               # Declarative SQLAlchemy entity relational models
+│   ├── requirements.txt        # Server-tier dependencies
+│   ├── static/css/style.css    # High-density cybersecurity dark UI stylesheet
+│   └── templates/              # Jinja2 rendering templates (Dashboard, RBAC, Machines, Audit)
+│
+├── agent/
+│   ├── universal_agent.py      # Cross-platform edge daemon with OS-native execution logic
+│   └── requirements.txt        # Agent micro-daemon dependencies
+│
+├── shared/
+│   ├── config.py               # Shared cryptographic settings & JWT lifecycle utilities
+│   └── utils.py                # Logging pipelines, API response formatters, auth decorators
+│
+└── USER_MANUAL.md              # In-depth operator guide, troubleshooting matrices & workflows
 ```
 
 ---
 
-## Quick Start
+## Agent REST API Specification
+
+Target node agents expose a lightweight HTTP daemon authenticated via bearer tokens. All mutating endpoints mandate valid HMAC-SHA256 JWT claims (`iss: niyanta-iam-server`).
+
+| Method | Route | Authorization | Request Payload | Response Schema | Description |
+|:-------|:------|:-------------:|:----------------|:----------------|:------------|
+| `GET` | `/health` | Open | None | `{"status": "ok", "os": "<OS>"}` | Node connectivity & platform identification |
+| `POST` | `/create_user` | `Bearer <JWT>` | `{"username": str, "password": str}` | `{"status": "success", "message": str}` | Provisions OS account with default home directory |
+| `POST` | `/delete_user` | `Bearer <JWT>` | `{"username": str}` | `{"status": "success", "message": str}` | Purges OS account and user profile root |
+| `GET` | `/sessions` | `Bearer <JWT>` | None | `{"status": "success", "data": {"sessions": list}}` | Enumerates active interactive terminal/desktop sessions |
+| `GET` | `/audit_logs` | `Bearer <JWT>` | None | `{"status": "success", "data": {"logs": list}}` | Fetches tail of host authorization logs |
+
+---
+
+## Data Model & Schema Architecture
+
+The persistence tier relies on relational entity abstractions managed via SQLAlchemy:
+
+- **`TargetMachine`**: Compute node registry tracking IP addressing, hostnames, assigned agent ports, status flags, and health check heartbeats.
+- **`ManagedUser`**: State machine (`active` | `disabled` | `locked`) mapping provisioned user accounts to physical nodes, associated metadata, and assigned roles.
+- **`Role` & `Permission`**: Role groupings with UI color telemetry linked to granular action-resource capability pairs (`action`, `resource`).
+- **`Policy`**: Dynamic rule sets defining operational guardrails (e.g. `password_complexity`, `session_inactivity_timeout`) stored as structured JSON.
+- **`AuditLog`**: Tamper-evident ledger capturing operational event types (`USER_DEPLOY`, `USER_DELETE`, `POLICY_UPDATE`), severity gradients (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`), actor identities, and detail strings.
+
+---
+
+## Quickstart & Deployment
 
 ### Prerequisites
 
-- Python 3.10+
-- `pip` package manager
-- **Agent machines**: root (Linux) or Administrator (Windows) privileges
+- **Python Runtime**: Python 3.10 or higher
+- **Node Permissions**: `root` / `sudo` (Linux) or elevated Administrator privileges (Windows PowerShell)
 
-### 1. Clone the repo
+### 1. Repository Provisioning
 
 ```bash
 git clone https://github.com/tiwarirst/iam.git
-cd aegis-iam
+cd iam
 ```
 
-### 2. Start the Dashboard Server
+### 2. Control Plane Initialization
 
 ```bash
+# Install control plane dependencies
 pip install -r server/requirements.txt
+
+# (Optional) Export custom cryptographic secret
+export NIYANTA_SECRET_KEY="your-high-entropy-secret-key"
+
+# Launch Orchestrator
 python server/app.py
 ```
 
-Open **http://127.0.0.1:5000** in your browser.
+*The control plane boots at `http://127.0.0.1:5000` and automatically provisions the SQLite database (`server/niyanta_iam.db`) with baseline seed data.*
 
-### 3. Deploy an Agent on a Target Machine
+### 3. Edge Node Agent Provisioning
 
-Copy `agent/` and `shared/` to the target machine, then:
+Distribute `agent/` and `shared/` modules to target compute nodes:
 
 ```bash
 pip install -r agent/requirements.txt
 
-# Linux
-sudo python agent/universal_agent.py
-
-# Windows (run as Administrator)
-python agent\universal_agent.py
+# (Required) Ensure secret key matches control plane
+export NIYANTA_SECRET_KEY="your-high-entropy-secret-key"
 ```
 
-The agent listens on **port 5001**.
+#### Starting the Daemon:
 
-### 4. Register & Use
+- **Linux (POSIX)**:
+  ```bash
+  sudo python agent/universal_agent.py
+  ```
+- **Windows (NT)** *(Run PowerShell as Administrator)*:
+  ```powershell
+  $env:NIYANTA_SECRET_KEY="your-high-entropy-secret-key"
+  python agent\universal_agent.py
+  ```
 
-1. Go to **Machines** → register the agent's IP address
-2. Go to **Deploy** → select a machine, enter credentials, click **Deploy User**
-
----
-
-## Project Structure
-
-```
-aegis-iam/
-├── server/                   # Central Flask dashboard
-│   ├── app.py                # Flask app (30+ routes)
-│   ├── models.py             # SQLAlchemy models
-│   ├── requirements.txt
-│   ├── static/css/style.css  # Dark theme stylesheet
-│   └── templates/            # Jinja2 HTML templates
-│
-├── agent/                    # Lightweight agent (deploy to target VMs)
-│   ├── universal_agent.py    # Cross-platform agent with Flask API
-│   └── requirements.txt
-│
-├── shared/                   # Shared code (server + agent)
-│   ├── config.py             # JWT config & token helpers
-│   └── utils.py              # Logging, auth decorator, response helpers
-│
-├── USER_MANUAL.md            # Detailed usage documentation
-└── README.md
-```
+*The agent binds to `0.0.0.0:5001` and awaits authenticated commands from the orchestrator.*
 
 ---
 
-## Agent API
+## Security Model & Cryptographic Pipeline
 
-| Method | Endpoint | Auth | Description |
-|--------|----------|:----:|-------------|
-| `GET`  | `/health` | — | Health check (no auth required) |
-| `POST` | `/create_user` | JWT | Create a local user account |
-| `POST` | `/delete_user` | JWT | Delete a local user account |
-| `GET`  | `/sessions` | JWT | List active login sessions |
-| `GET`  | `/audit_logs` | JWT | Fetch authentication logs |
+1. **Token Minting**: The control plane signs payloads containing issuer identification (`iss: niyanta-iam-server`), UTC issue timestamp (`iat`), and expiration boundary (`exp: +30min`).
+2. **Signature Verification**: Target agents validate incoming bearer authorization against symmetric `NIYANTA_SECRET_KEY`. Invalid tokens immediately yield `401 Unauthorized` without invoking OS process trees.
+3. **Execution Isolation**: Command invocation is strictly dispatched through parameterized sub-processes (`subprocess.run`), preventing shell-injection vulnerabilities.
+4. **Credential Lifecycle**: Raw passwords exist purely in transient process memory during account creation commands and are never serialized or indexed into the controller's persistence layer.
 
 ---
 
-## Security
+## Configuration Matrix
 
-All server-to-agent communication is authenticated using **JWT tokens** (HS256, 30-min expiry).
-
-Set a custom secret key before deploying:
-
-```bash
-export AEGIS_SECRET_KEY="your-secure-random-key"
-```
-
-> **Warning:** The default secret key is for development only. Always set `AEGIS_SECRET_KEY` in production.
-
----
-
-## Tech Stack
-
-| Component | Technology |
-|-----------|------------|
-| Backend | Python, Flask, SQLAlchemy, SQLite |
-| Auth | PyJWT (HS256) |
-| Frontend | Jinja2, Chart.js, CSS (custom dark theme) |
-| Agent | Flask micro-API + subprocess (`useradd` / PowerShell) |
-
----
-
-## Documentation
-
-See [USER_MANUAL.md](USER_MANUAL.md) for detailed setup instructions, feature walkthroughs, API reference, troubleshooting, and FAQ.
-
----
-
-## License
-
-MIT — see [LICENSE](LICENSE) for details.
+| Parameter | Environment Variable | Default Value | Context |
+|:----------|:---------------------|:--------------|:--------|
+| Cryptographic Secret | `NIYANTA_SECRET_KEY` | `niyanta-iam-super-secret-key-2026` | Shared (Server + Agent) |
+| Controller Port | — | `5000` | Server (`server/app.py`) |
+| Agent Port | — | `5001` | Shared (`shared/config.py`) |
+| Persistence Engine | — | `sqlite:///server/niyanta_iam.db` | Server (`server/app.py`) |
+| Token Expiration | — | `30 Minutes` | Shared (`shared/config.py`) |
+| Signing Algorithm | — | `HS256` | Shared (`shared/config.py`) |

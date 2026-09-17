@@ -1,0 +1,1657 @@
+{% extends "base.html" %}
+{% block title %}niyanta-IAM · Cluster Topology & Architecture Graph{% endblock %}
+{% block page_title %}Cluster Topology & Architecture Graph{% endblock %}
+
+{% block content %}
+
+<!-- ── Topology Mission Control Viewport ─────────────────────────────── -->
+<div class="topology-wrapper" id="topologyWrapper">
+    <!-- Cyber Blueprint Background Grid -->
+    <div class="topology-grid-bg"></div>
+
+    <!-- Main High-DPI Interactive Graph Canvas -->
+    <canvas id="topologyCanvas" class="topology-canvas"></canvas>
+
+    <!-- Top Mission Control HUD Bar -->
+    <div class="topology-top-hud">
+        <!-- Title & Real-Time Sync Beacon -->
+        <div class="topology-title-pill">
+            <span class="live-beacon-pulse" id="liveSyncBeacon"></span>
+            <h3>Infrastructure Matrix</h3>
+            <span class="badge active" id="nodeCountBadge" style="font-size: 10.5px; padding: 2px 8px;">Synchronizing...</span>
+            <div class="topology-sync-pill" id="syncPill" title="Real-time heartbeat polling every 4 seconds">
+                <span id="syncLabel">SYNC: 4s</span>
+            </div>
+        </div>
+
+        <!-- Tier-1 Architecture Layout Mode Switcher -->
+        <div class="topology-layout-switch" id="layoutSwitch">
+            <button class="layout-switch-btn active" data-layout="layered" title="Tiered Enterprise Architecture (Layered Flow)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="3" y1="6" x2="21" y2="6"/>
+                    <line x1="3" y1="12" x2="21" y2="12"/>
+                    <line x1="3" y1="18" x2="21" y2="18"/>
+                </svg>
+                <span>Layered</span>
+            </button>
+            <button class="layout-switch-btn" data-layout="radial" title="Concentric Orbital Cluster View">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <circle cx="12" cy="12" r="8"/>
+                </svg>
+                <span>Radial</span>
+            </button>
+            <button class="layout-switch-btn" data-layout="enclaves" title="Host Machine Enclave Pods">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="7" height="7"/>
+                    <rect x="14" y="3" width="7" height="7"/>
+                    <rect x="14" y="14" width="7" height="7"/>
+                    <rect x="3" y="14" width="7" height="7"/>
+                </svg>
+                <span>Enclaves</span>
+            </button>
+        </div>
+
+        <!-- Node Search & Quick Focus -->
+        <div class="topology-search-wrap">
+            <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input type="text" id="topologySearch" placeholder="Search node, IP, account..." autocomplete="off">
+            <button class="clear-ico" id="clearSearchBtn">&times;</button>
+        </div>
+
+        <!-- Camera & Real-Time Action Toolbar -->
+        <div class="topology-toolbar">
+            <button class="topology-tool-btn active" id="toggleRolesBtn" title="Toggle RBAC Governance Role Nodes (Show/Hide VIEWER/ADMIN)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+            </button>
+            <button class="topology-tool-btn" id="manualSyncBtn" title="Real-Time Sync Now (Fetch telemetry)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                </svg>
+            </button>
+            <button class="topology-tool-btn" id="recenterBtn" title="Fit to Screen / Recenter (R)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M3 12h3m12 0h3M12 3v3m0 12v3"/>
+                </svg>
+            </button>
+            <button class="topology-tool-btn" id="zoomInBtn" title="Zoom In (+)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"/>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    <line x1="11" y1="8" x2="11" y2="14"/>
+                    <line x1="8" y1="11" x2="14" y2="11"/>
+                </svg>
+            </button>
+            <button class="topology-tool-btn" id="zoomOutBtn" title="Zoom Out (-)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"/>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    <line x1="8" y1="11" x2="14" y2="11"/>
+                </svg>
+            </button>
+            <button class="topology-tool-btn" id="clearPinsBtn" title="Dismiss All Pinned Sticky Cards (Esc)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Active Spotlight / Isolation Banner -->
+    <div class="topology-spotlight-bar" id="spotlightBar" style="display: none;">
+        <span>Isolating dependency channel for <strong id="spotlightTargetName">node</strong></span>
+        <button type="button" id="clearSpotlightBtn">&times; Reset View</button>
+    </div>
+
+    <!-- Bottom Filter Chips -->
+    <div class="topology-filter-bar">
+        <button class="filter-chip active" data-filter="all">
+            <span class="chip-dot" style="background: var(--brand);"></span>
+            All Active Entities <span class="filter-count" id="countAll">0</span>
+        </button>
+        <button class="filter-chip" data-filter="machine">
+            <span class="chip-dot" style="background: var(--accent-cyan);"></span>
+            Compute Fleet <span class="filter-count" id="countMachines">0</span>
+        </button>
+        <button class="filter-chip" data-filter="user">
+            <span class="chip-dot" style="background: var(--accent-green);"></span>
+            Identities <span class="filter-count" id="countUsers">0</span>
+        </button>
+        <button class="filter-chip" data-filter="role" id="roleFilterChip">
+            <span class="chip-dot" style="background: var(--accent-purple);"></span>
+            Active Roles <span class="filter-count" id="countRoles">0</span>
+        </button>
+    </div>
+
+    <!-- Radar Minimap -->
+    <div class="topology-radar" id="topologyRadar" title="Cluster Radar · Click to jump camera">
+        <span class="radar-label">Cluster Radar</span>
+        <canvas id="radarCanvas"></canvas>
+    </div>
+
+    <!-- Keyboard Shortcuts Legend -->
+    <div class="topology-kbd-legend">
+        <span><kbd>R</kbd> Recenter</span>
+        <span><kbd>1</kbd>-<kbd>3</kbd> Layouts</span>
+        <span><kbd>Esc</kbd> Clear</span>
+        <span><kbd>Click Wire</kbd> Inspect Link</span>
+    </div>
+
+    <!-- SVG Layer for Dynamic Sticky Note Cables -->
+    <svg class="sticky-hud-layer" id="stickyConnectorSvg"></svg>
+
+    <!-- Floating Sticky Note HUD Layer -->
+    <div class="sticky-hud-layer" id="stickyHudContainer"></div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    'use strict';
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  TIER-1 ENTERPRISE ARCHITECTURE GRAPH & REAL-TIME HUD ENGINE
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    const container = document.getElementById('topologyWrapper');
+    const canvas = document.getElementById('topologyCanvas');
+    const ctx = canvas.getContext('2d');
+    const radarCanvas = document.getElementById('radarCanvas');
+    const radarCtx = radarCanvas.getContext('2d');
+    const hudContainer = document.getElementById('stickyHudContainer');
+    const connectorSvg = document.getElementById('stickyConnectorSvg');
+    const spotlightBar = document.getElementById('spotlightBar');
+    const spotlightTargetName = document.getElementById('spotlightTargetName');
+    const syncLabel = document.getElementById('syncLabel');
+
+    // Camera Transformation Matrix
+    const camera = {
+        x: 0,
+        y: 0,
+        targetX: 0,
+        targetY: 0,
+        zoom: 1,
+        targetZoom: 1,
+        isDragging: false,
+        dragStartX: 0,
+        dragStartY: 0
+    };
+
+    // State Variables
+    let graphData = { nodes: [], edges: [] };
+    let filteredNodes = [];
+    let filteredEdges = [];
+    let activeFilter = 'all';
+    let currentLayout = 'layered'; // 'layered' | 'radial' | 'enclaves'
+    let hoveredNode = null;
+    let hoveredEdge = null;
+    let draggedNode = null;
+    let spotlightNode = null;
+    let pinnedCards = new Map(); // nodeId -> { cardEl, customX, customY }
+    let activeHoverCard = null;
+    let animFrameId = null;
+    let packetOffset = 0;
+    let pollInterval = null;
+    let lastSyncTime = Date.now();
+    let showRolesInGraph = true;
+    let isMouseOverCard = false;
+    let hoverDismissTimeout = null;
+    let mouseDownInfo = null;
+
+    // Entity Design Tokens
+    const TYPE_THEMES = {
+        core: {
+            color: '#6366f1',
+            glow: 'rgba(99, 102, 241, 0.45)',
+            radius: 36,
+            border: '#818cf8',
+            label: 'Control Plane',
+            symbol: '🛡'
+        },
+        machine_linux: {
+            color: '#06b6d4',
+            glow: 'rgba(6, 182, 212, 0.4)',
+            radius: 28,
+            border: '#22d3ee',
+            label: 'Linux Node',
+            symbol: '🐧'
+        },
+        machine_windows: {
+            color: '#3b82f6',
+            glow: 'rgba(59, 130, 246, 0.4)',
+            radius: 28,
+            border: '#60a5fa',
+            label: 'Windows Node',
+            symbol: '⊞'
+        },
+        user: {
+            color: '#10b981',
+            glow: 'rgba(16, 185, 129, 0.35)',
+            radius: 20,
+            border: '#34d399',
+            label: 'OS Identity',
+            symbol: '👤'
+        },
+        user_locked: {
+            color: '#f43f5e',
+            glow: 'rgba(244, 63, 94, 0.35)',
+            radius: 20,
+            border: '#fb7185',
+            label: 'Locked Account',
+            symbol: '🔒'
+        },
+        role: {
+            color: '#8b5cf6',
+            glow: 'rgba(139, 92, 246, 0.45)',
+            radius: 21,
+            border: '#c084fc',
+            label: 'RBAC Permission Role',
+            symbol: '🛡'
+        }
+    };
+
+    // High-DPI Canvas Resizing
+    function resizeCanvas() {
+        const dpr = window.devicePixelRatio || 1;
+        const rect = container.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        canvas.style.width = rect.width + 'px';
+        canvas.style.height = rect.height + 'px';
+        ctx.scale(dpr, dpr);
+
+        radarCanvas.width = 150 * dpr;
+        radarCanvas.height = 95 * dpr;
+        radarCtx.scale(dpr, dpr);
+    }
+
+    window.addEventListener('resize', () => {
+        resizeCanvas();
+        updateHudCardPositions();
+    });
+
+    // ── Load Topology Telemetry with Real-Time Polling ───────────────────────
+    function loadTopology(isInitial = false) {
+        fetch('/api/topology')
+            .then(r => r.json())
+            .then(data => {
+                lastSyncTime = Date.now();
+                updateSyncStatus('LIVE');
+
+                if (isInitial) {
+                    graphData = data;
+                    calculateLayoutTargets(data.nodes, currentLayout, true);
+                    applyFilter(activeFilter);
+                    updateCounts(data);
+                    recenterCamera();
+                } else {
+                    // Seamless in-place real-time update (preserves camera, drag state, and pinned cards)
+                    updateExistingGraphData(data);
+                    updateCounts(data);
+                }
+            })
+            .catch(err => {
+                console.error('Topology sync error:', err);
+                updateSyncStatus('RECONNECTING');
+            });
+    }
+
+    function updateExistingGraphData(freshData) {
+        // Update nodes preserving active coordinates
+        freshData.nodes.forEach(freshNode => {
+            const existing = graphData.nodes.find(n => n.id === freshNode.id);
+            if (existing) {
+                existing.status = freshNode.status;
+                existing.meta = freshNode.meta;
+                existing.label = freshNode.label;
+            } else {
+                graphData.nodes.push(freshNode);
+            }
+        });
+
+        // Remove deleted nodes
+        const freshIds = new Set(freshData.nodes.map(n => n.id));
+        graphData.nodes = graphData.nodes.filter(n => freshIds.has(n.id));
+
+        // Update edges
+        graphData.edges = freshData.edges || [];
+        calculateLayoutTargets(graphData.nodes, currentLayout, false);
+        applyFilter(activeFilter);
+    }
+
+    function updateSyncStatus(status) {
+        const beacon = document.getElementById('liveSyncBeacon');
+        if (status === 'LIVE') {
+            beacon.style.background = 'var(--accent-green)';
+            beacon.style.boxShadow = '0 0 8px var(--accent-green)';
+            syncLabel.textContent = 'SYNC: 4s';
+        } else {
+            beacon.style.background = 'var(--accent-rose)';
+            beacon.style.boxShadow = '0 0 8px var(--accent-rose)';
+            syncLabel.textContent = 'RETRYING';
+        }
+    }
+
+    function updateCounts(data) {
+        const nodes = data.nodes || [];
+        const machines = nodes.filter(n => n.type === 'machine');
+        const users = nodes.filter(n => n.type === 'user');
+        const roles = nodes.filter(n => n.type === 'role');
+        const activeMachines = machines.filter(m => m.status === 'active');
+
+        document.getElementById('countAll').textContent = nodes.length;
+        document.getElementById('countMachines').textContent = machines.length;
+        document.getElementById('countUsers').textContent = users.length;
+        document.getElementById('countRoles').textContent = roles.length;
+
+        const healthPercent = machines.length > 0 ? Math.round((activeMachines.length / machines.length) * 100) : 100;
+        document.getElementById('nodeCountBadge').textContent = `${machines.length} Compute · ${users.length} Identities · ${healthPercent}% Online`;
+    }
+
+    // Real-Time Polling Timer
+    function startRealtimeSync() {
+        if (pollInterval) clearInterval(pollInterval);
+        pollInterval = setInterval(() => {
+            loadTopology(false);
+        }, 4000);
+    }
+
+    document.getElementById('manualSyncBtn').addEventListener('click', () => {
+        showToast('Checking real-time cluster telemetry...', 'info');
+        loadTopology(false);
+    });
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  DETERMINISTIC ARCHITECTURAL LAYOUT ENGINES (TIERED / RADIAL / ENCLAVES)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    function calculateLayoutTargets(nodes, layoutMode, instantSnap = false) {
+        if (!nodes || nodes.length === 0) return;
+
+        const core = nodes.find(n => n.type === 'core');
+        const machines = nodes.filter(n => n.type === 'machine');
+        const users = nodes.filter(n => n.type === 'user');
+        const roles = nodes.filter(n => n.type === 'role');
+
+        if (layoutMode === 'layered') {
+            // ── TIER 1 ARCHITECTURE: CONTROL ➔ FLEET ➔ IDENTITIES (ZERO CHAOS) ──
+            // Tier 01: Central Security Authority
+            if (core) {
+                core.targetX = 0;
+                core.targetY = -220;
+            }
+
+            // Tier 02: Compute Fleet (Enrolled Target Machines)
+            const machSpacing = 320;
+            const machTotalWidth = (machines.length - 1) * machSpacing;
+            machines.forEach((m, i) => {
+                m.targetX = -machTotalWidth / 2 + i * machSpacing;
+                m.targetY = 20;
+
+                // Tier 03: Provisioned Local OS Accounts directly below their host node
+                const hostUsers = users.filter(u => u.meta && u.meta.host_node === m.label);
+                const userSpacing = 130;
+                const userTotalWidth = (hostUsers.length - 1) * userSpacing;
+                hostUsers.forEach((u, uIdx) => {
+                    u.targetX = m.targetX - userTotalWidth / 2 + uIdx * userSpacing;
+                    u.targetY = 220;
+                });
+            });
+
+            // Unassigned users (if any)
+            const unassignedUsers = users.filter(u => !u.targetX && !u.targetY);
+            unassignedUsers.forEach((u, idx) => {
+                u.targetX = (idx - (unassignedUsers.length - 1) / 2) * 120;
+                u.targetY = 320;
+            });
+
+            // Active Roles (flanked neatly on the top right)
+            roles.forEach((r, i) => {
+                r.targetX = 360 + i * 110;
+                r.targetY = -220;
+            });
+
+        } else if (layoutMode === 'radial') {
+            // ── CONCENTRIC ORBITAL CLUSTER ─────────────────────────────────────
+            if (core) {
+                core.targetX = 0;
+                core.targetY = 0;
+            }
+
+            const mRadius = 240;
+            const mStep = (Math.PI * 2) / Math.max(machines.length, 1);
+            machines.forEach((m, idx) => {
+                const angle = idx * mStep - Math.PI / 2;
+                m.targetX = Math.cos(angle) * mRadius;
+                m.targetY = Math.sin(angle) * mRadius;
+
+                // Users cluster as satellites around their host node
+                const hostUsers = users.filter(u => u.meta && u.meta.host_node === m.label);
+                const uDist = 130;
+                const uSpread = 0.55;
+                hostUsers.forEach((u, uIdx) => {
+                    const uOffset = (uIdx - (hostUsers.length - 1) / 2) * (uSpread / Math.max(hostUsers.length, 1));
+                    const uAngle = angle + uOffset;
+                    u.targetX = m.targetX + Math.cos(uAngle) * uDist;
+                    u.targetY = m.targetY + Math.sin(uAngle) * uDist;
+                });
+            });
+
+            // Roles on outer orbit
+            const rRadius = 450;
+            const rStep = (Math.PI * 2) / Math.max(roles.length, 1);
+            roles.forEach((r, idx) => {
+                const angle = idx * rStep + 0.3;
+                r.targetX = Math.cos(angle) * rRadius;
+                r.targetY = Math.sin(angle) * rRadius;
+            });
+
+        } else if (layoutMode === 'enclaves') {
+            // ── MACHINE HOST ENCLAVES (DATACENTER PODS) ───────────────────────
+            if (core) {
+                core.targetX = 0;
+                core.targetY = -260;
+            }
+
+            roles.forEach((r, idx) => {
+                r.targetX = 340 + idx * 110;
+                r.targetY = -260;
+            });
+
+            const podSpacing = 400;
+            const podTotalWidth = (machines.length - 1) * podSpacing;
+            machines.forEach((m, idx) => {
+                const podCenterX = -podTotalWidth / 2 + idx * podSpacing;
+                const podCenterY = 70;
+                m.targetX = podCenterX;
+                m.targetY = podCenterY - 60;
+
+                const hostUsers = users.filter(u => u.meta && u.meta.host_node === m.label);
+                hostUsers.forEach((u, uIdx) => {
+                    const row = Math.floor(uIdx / 2);
+                    const col = uIdx % 2;
+                    u.targetX = podCenterX + (col === 0 ? -70 : 70);
+                    u.targetY = podCenterY + 45 + row * 65;
+                });
+            });
+        }
+
+        nodes.forEach(n => {
+            if (instantSnap || typeof n.x === 'undefined') {
+                n.x = n.targetX || 0;
+                n.y = n.targetY || 0;
+            }
+        });
+    }
+
+    // ── Entity Filters ─────────────────────────────────────────────────────
+    function applyFilter(filter) {
+        activeFilter = filter;
+        let baseNodes = graphData.nodes;
+        if (!showRolesInGraph && filter !== 'role') {
+            baseNodes = baseNodes.filter(n => n.type !== 'role');
+        }
+
+        if (filter === 'all') {
+            filteredNodes = baseNodes;
+        } else if (filter === 'active_only') {
+            filteredNodes = baseNodes.filter(n => n.status === 'active');
+        } else {
+            filteredNodes = baseNodes.filter(n => n.type === filter || n.type === 'core');
+        }
+
+        const visibleNodeIds = new Set(filteredNodes.map(n => n.id));
+        filteredEdges = (graphData.edges || []).filter(e => visibleNodeIds.has(e.from) && visibleNodeIds.has(e.to));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  CANVAS MAIN 60FPS RENDER LOOP
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    function render() {
+        camera.x += (camera.targetX - camera.x) * 0.12;
+        camera.y += (camera.targetY - camera.y) * 0.12;
+        camera.zoom += (camera.targetZoom - camera.zoom) * 0.14;
+
+        filteredNodes.forEach(node => {
+            if (node !== draggedNode) {
+                if (typeof node.targetX === 'number') node.x += (node.targetX - node.x) * 0.08;
+                if (typeof node.targetY === 'number') node.y += (node.targetY - node.y) * 0.08;
+            }
+        });
+
+        const rect = container.getBoundingClientRect();
+        const width = rect.width;
+        const height = rect.height;
+
+        ctx.clearRect(0, 0, width, height);
+
+        ctx.save();
+        ctx.translate(width / 2 + camera.x, height / 2 + camera.y);
+        ctx.scale(camera.zoom, camera.zoom);
+
+        // 1. Draw Architectural Layout Backdrop
+        if (currentLayout === 'layered') {
+            drawArchitecturalLanes();
+        } else if (currentLayout === 'radial') {
+            drawOrbitalBackdrop();
+        } else if (currentLayout === 'enclaves') {
+            drawPodEnclaves();
+        }
+
+        // 2. Draw Relational Connection Cables & Protocol Badges
+        drawEdges();
+
+        // 3. Draw Entity Nodes
+        drawNodes();
+
+        ctx.restore();
+
+        // 4. Update Radar Minimap
+        renderMinimap();
+
+        // 5. Update Position of Sticky HUD Cards
+        updateHudCardPositions();
+
+        packetOffset += 0.018;
+        animFrameId = requestAnimationFrame(render);
+    }
+
+    // ── Architectural Background Guides ────────────────────────────────────
+    function drawArchitecturalLanes() {
+        ctx.save();
+        const lanes = [
+            { y: -220, label: 'TIER 01 // CENTRAL CONTROL AUTHORITY', color: 'rgba(99, 102, 241, 0.07)' },
+            { y: 20,   label: 'TIER 02 // COMPUTE FLEET & DAEMON FABRIC', color: 'rgba(6, 182, 212, 0.06)' },
+            { y: 220,  label: 'TIER 03 // MANAGED LOCAL OS ACCOUNTS', color: 'rgba(16, 185, 129, 0.05)' }
+        ];
+
+        lanes.forEach(lane => {
+            ctx.fillStyle = lane.color;
+            ctx.fillRect(-900, lane.y - 50, 1800, 100);
+
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 8]);
+            ctx.beginPath();
+            ctx.moveTo(-900, lane.y + 50);
+            ctx.lineTo(900, lane.y + 50);
+            ctx.stroke();
+
+            ctx.fillStyle = 'rgba(148, 163, 184, 0.4)';
+            ctx.font = '700 9px "JetBrains Mono", monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText(lane.label, -880, lane.y - 28);
+        });
+
+        ctx.restore();
+    }
+
+    function drawOrbitalBackdrop() {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(99, 102, 241, 0.08)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 6]);
+
+        [240, 450].forEach((r, idx) => {
+            ctx.beginPath();
+            ctx.arc(0, 0, r, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.fillStyle = 'rgba(148, 163, 184, 0.35)';
+            ctx.font = '600 8.5px "JetBrains Mono", monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(idx === 0 ? 'COMPUTE FLEET ORBIT' : 'GOVERNANCE RING', 0, -r - 6);
+        });
+        ctx.restore();
+    }
+
+    function drawPodEnclaves() {
+        ctx.save();
+        const machines = filteredNodes.filter(n => n.type === 'machine');
+
+        machines.forEach(m => {
+            const hostUsers = filteredNodes.filter(u => u.type === 'user' && u.meta && u.meta.host_node === m.label);
+            const podW = 320;
+            const podH = 140 + Math.ceil(hostUsers.length / 2) * 70;
+            const podX = m.targetX - podW / 2;
+            const podY = m.targetY - 45;
+
+            ctx.fillStyle = 'rgba(12, 17, 28, 0.7)';
+            ctx.strokeStyle = m.meta.os_type === 'Windows' ? 'rgba(59, 130, 246, 0.3)' : 'rgba(6, 182, 212, 0.3)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            roundRect(ctx, podX, podY, podW, podH, 16);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = m.meta.os_type === 'Windows' ? 'rgba(59, 130, 246, 0.8)' : 'rgba(6, 182, 212, 0.8)';
+            ctx.font = '700 9px "JetBrains Mono", monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText(`ENCLAVE // ${m.label.toUpperCase()} (${m.meta.os_type || 'LINUX'}) · PORT 5001`, podX + 16, podY + 22);
+        });
+
+        ctx.restore();
+    }
+
+    function roundRect(c, x, y, w, h, r) {
+        c.moveTo(x + r, y);
+        c.arcTo(x + w, y, x + w, y + h, r);
+        c.arcTo(x + w, y + h, x, y + h, r);
+        c.arcTo(x, y + h, x, y, r);
+        c.arcTo(x, y, x + w, y, r);
+    }
+
+    // ── Edge Cable Drawing & Connection Protocol Badges ─────────────────────
+    function drawEdges() {
+        filteredEdges.forEach(e => {
+            const n1 = filteredNodes.find(n => n.id === e.from);
+            const n2 = filteredNodes.find(n => n.id === e.to);
+            if (!n1 || !n2) return;
+
+            const isSpotlightActive = !!spotlightNode;
+            const isEdgeConnected = isSpotlightActive && (
+                (spotlightNode.id === n1.id || spotlightNode.id === n2.id) ||
+                (isDirectlyConnected(spotlightNode.id, n1.id) && isDirectlyConnected(spotlightNode.id, n2.id))
+            );
+            const isHovered = (hoveredNode && (hoveredNode.id === n1.id || hoveredNode.id === n2.id)) || (hoveredEdge === e);
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(n1.x, n1.y);
+
+            let midX, midY;
+            if (currentLayout === 'layered') {
+                midY = (n1.y + n2.y) / 2;
+                midX = (n1.x + n2.x) / 2;
+                ctx.bezierCurveTo(n1.x, midY, n2.x, midY, n2.x, n2.y);
+            } else {
+                const mx = (n1.x + n2.x) / 2;
+                const my = (n1.y + n2.y) / 2;
+                const curvature = 16;
+                const nx = -(n2.y - n1.y);
+                const ny = (n2.x - n1.x);
+                const len = Math.sqrt(nx * nx + ny * ny) || 1;
+                const cx = mx + (nx / len) * curvature;
+                const cy = my + (ny / len) * curvature;
+                midX = cx;
+                midY = cy;
+                ctx.quadraticCurveTo(cx, cy, n2.x, n2.y);
+            }
+
+            // Edge Cable Styling
+            if (isSpotlightActive && !isEdgeConnected) {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+                ctx.lineWidth = 1;
+            } else if (isHovered || isEdgeConnected) {
+                ctx.strokeStyle = '#818cf8';
+                ctx.lineWidth = 2.8;
+                ctx.shadowColor = 'rgba(99, 102, 241, 0.8)';
+                ctx.shadowBlur = 12;
+            } else if (e.type === 'jwt_link') {
+                ctx.strokeStyle = e.status === 'active' ? 'rgba(6, 182, 212, 0.4)' : 'rgba(244, 63, 94, 0.35)';
+                ctx.lineWidth = 2;
+            } else if (e.type === 'rbac_link') {
+                ctx.strokeStyle = 'rgba(139, 92, 246, 0.35)';
+                ctx.lineWidth = 1.4;
+                ctx.setLineDash([3, 4]);
+            } else {
+                ctx.strokeStyle = 'rgba(16, 185, 129, 0.35)';
+                ctx.lineWidth = 1.8;
+            }
+
+            ctx.stroke();
+
+            // Animated Energy Packets for active connections
+            if ((!isSpotlightActive || isEdgeConnected) && (e.status === 'active' || isHovered)) {
+                const t = (packetOffset + (Math.abs(n1.x) * 0.003)) % 1;
+                let px, py;
+
+                if (currentLayout === 'layered') {
+                    const u = 1 - t;
+                    px = u * u * u * n1.x + 3 * u * u * t * n1.x + 3 * u * t * t * n2.x + t * t * t * n2.x;
+                    py = u * u * u * n1.y + 3 * u * u * t * midY + 3 * u * t * t * midY + t * t * t * n2.y;
+                } else {
+                    const u = 1 - t;
+                    px = u * u * n1.x + 2 * u * t * midX + t * t * n2.x;
+                    py = u * u * n1.y + 2 * u * t * midY + t * t * n2.y;
+                }
+
+                ctx.beginPath();
+                ctx.arc(px, py, isHovered || isEdgeConnected ? 3.5 : 2.2, 0, Math.PI * 2);
+                ctx.fillStyle = isHovered || isEdgeConnected ? '#ffffff' : (e.type === 'jwt_link' ? '#22d3ee' : '#34d399');
+                ctx.shadowColor = ctx.fillStyle;
+                ctx.shadowBlur = 8;
+                ctx.fill();
+            }
+
+            // ── EXPLICIT CONNECTION PROTOCOL BADGE ON WIRE ───────────────────
+            if (camera.zoom > 0.62) {
+                const badgeText = e.label || (e.type === 'jwt_link' ? 'mTLS / JWT :5001' : 'Local OS Account');
+                ctx.font = '600 9.5px "JetBrains Mono", monospace';
+                const textWidth = ctx.measureText(badgeText).width;
+                const badgeW = textWidth + 24;
+                const badgeH = 20;
+                const badgeX = midX - badgeW / 2;
+                const badgeY = midY - badgeH / 2;
+
+                // Save badge bounding rect on edge for mouse interaction
+                e.screenX = midX;
+                e.screenY = midY;
+                e.badgeW = badgeW;
+                e.badgeH = badgeH;
+
+                ctx.save();
+                // Badge background
+                ctx.fillStyle = isHovered ? '#1c2438' : 'rgba(10, 15, 25, 0.94)';
+                ctx.beginPath();
+                roundRect(ctx, badgeX, badgeY, badgeW, badgeH, 10);
+                ctx.fill();
+
+                // Badge border
+                ctx.strokeStyle = isHovered ? '#818cf8' : (e.status === 'active' ? 'rgba(6, 182, 212, 0.45)' : 'rgba(244, 63, 94, 0.4)');
+                ctx.lineWidth = isHovered ? 1.5 : 1;
+                ctx.stroke();
+
+                // Live status beacon dot
+                ctx.beginPath();
+                ctx.arc(badgeX + 9, midY, 3, 0, Math.PI * 2);
+                ctx.fillStyle = e.status === 'active' ? '#10b981' : '#f43f5e';
+                ctx.fill();
+
+                // Badge label
+                ctx.fillStyle = isHovered ? '#ffffff' : '#94a3b8';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(badgeText, badgeX + 16, midY + 0.5);
+                ctx.restore();
+            }
+
+            ctx.restore();
+        });
+    }
+
+    function isDirectlyConnected(nodeAId, nodeBId) {
+        if (nodeAId === nodeBId) return true;
+        return filteredEdges.some(e =>
+            (e.from === nodeAId && e.to === nodeBId) ||
+            (e.from === nodeBId && e.to === nodeAId)
+        );
+    }
+
+    // ── Entity Node Drawing ──────────────────────────────────────────────────
+    function drawNodes() {
+        filteredNodes.forEach(node => {
+            const themeKey = node.type === 'machine'
+                ? (node.meta.os_type === 'Windows' ? 'machine_windows' : 'machine_linux')
+                : (node.type === 'user' && node.status === 'locked' ? 'user_locked' : node.type);
+            const theme = TYPE_THEMES[themeKey] || TYPE_THEMES.user;
+
+            const isHovered = hoveredNode && hoveredNode.id === node.id;
+            const isPinned = pinnedCards.has(node.id);
+            const isSpotlightActive = !!spotlightNode;
+            const isSpotlightTarget = isSpotlightActive && spotlightNode.id === node.id;
+            const isNeighbor = isSpotlightActive && isDirectlyConnected(spotlightNode.id, node.id);
+
+            const isDimmed = isSpotlightActive && !isSpotlightTarget && !isNeighbor;
+            const radius = theme.radius * (isHovered || isSpotlightTarget ? 1.16 : 1.0);
+
+            ctx.save();
+            ctx.translate(node.x, node.y);
+
+            if (isDimmed) {
+                ctx.globalAlpha = 0.18;
+            }
+
+            // Outer Aura Glow
+            ctx.beginPath();
+            ctx.arc(0, 0, radius + (isHovered || isSpotlightTarget ? 14 : 7), 0, Math.PI * 2);
+            ctx.fillStyle = theme.glow;
+            ctx.shadowColor = theme.color;
+            ctx.shadowBlur = isHovered || isSpotlightTarget ? 26 : 12;
+            ctx.fill();
+
+            // Obsidian Glass Base
+            ctx.beginPath();
+            ctx.arc(0, 0, radius, 0, Math.PI * 2);
+            ctx.fillStyle = isHovered || isSpotlightTarget ? '#1c2438' : '#0b101c';
+            ctx.fill();
+
+            // Glowing Perimeter Boundary
+            ctx.lineWidth = isHovered || isPinned || isSpotlightTarget ? 3 : 2;
+            ctx.strokeStyle = isPinned ? '#ffffff' : (isHovered || isSpotlightTarget ? '#ffffff' : theme.border);
+            ctx.stroke();
+
+            // Distinct RBAC Governance Outer Dash Ring for Roles
+            if (node.type === 'role') {
+                ctx.save();
+                ctx.strokeStyle = isHovered || isSpotlightTarget ? '#e9d5ff' : 'rgba(192, 132, 252, 0.7)';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([4, 3]);
+                ctx.beginPath();
+                ctx.arc(0, 0, radius + 5, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            // Status Core Beacon
+            ctx.beginPath();
+            ctx.arc(0, 0, radius * 0.44, 0, Math.PI * 2);
+            ctx.fillStyle = node.status === 'offline' || node.status === 'inactive' ? '#f43f5e' : theme.color;
+            ctx.fill();
+
+            // Center Symbol
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `600 ${radius * 0.5}px "Plus Jakarta Sans", sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(theme.symbol, 0, 1);
+
+            // Node Name
+            ctx.font = `600 ${isHovered || isSpotlightTarget ? 12.5 : 11}px "Plus Jakarta Sans", sans-serif`;
+            ctx.fillStyle = isHovered || isSpotlightTarget ? '#ffffff' : '#cbd5e1';
+            ctx.shadowColor = 'rgba(0,0,0,0.9)';
+            ctx.shadowBlur = 4;
+            ctx.fillText(node.label, 0, radius + 15);
+
+            // Subtitle Badge
+            if (camera.zoom > 0.65) {
+                ctx.font = `500 9.5px "JetBrains Mono", monospace`;
+                ctx.fillStyle = '#64748b';
+                if (node.type === 'machine' && node.meta.ip_address) {
+                    ctx.fillText(`${node.meta.ip_address} · :${node.meta.port || 5001}`, 0, radius + 28);
+                } else if (node.type === 'user' && node.meta.role) {
+                    ctx.fillStyle = '#34d399';
+                    ctx.fillText(`ROLE: ${node.meta.role} · ${node.meta.policies_count || 0} POLICIES`, 0, radius + 28);
+                } else if (node.type === 'core') {
+                    ctx.fillText('PORT 5000 · JWT HS256', 0, radius + 28);
+                } else if (node.type === 'role') {
+                    ctx.fillStyle = '#c084fc';
+                    ctx.fillText(`RBAC ROLE · ${node.meta.scope_level || 'READ-ONLY'}`, 0, radius + 28);
+                }
+            }
+
+            ctx.restore();
+        });
+    }
+
+    // ── Radar Minimap ────────────────────────────────────────────────────────
+    function renderMinimap() {
+        radarCtx.clearRect(0, 0, 150, 95);
+
+        const bounds = getGraphBounds();
+        const spanX = Math.max(bounds.maxX - bounds.minX, 450);
+        const spanY = Math.max(bounds.maxY - bounds.minY, 350);
+        const scale = Math.min(135 / spanX, 80 / spanY);
+
+        radarCtx.save();
+        radarCtx.translate(75, 48);
+
+        filteredNodes.forEach(n => {
+            const rx = (n.x - (bounds.minX + bounds.maxX) / 2) * scale;
+            const ry = (n.y - (bounds.minY + bounds.maxY) / 2) * scale;
+
+            radarCtx.beginPath();
+            radarCtx.arc(rx, ry, n.type === 'core' ? 3.5 : 2, 0, Math.PI * 2);
+            radarCtx.fillStyle = n.type === 'core' ? '#6366f1' : (n.type === 'machine' ? '#06b6d4' : '#10b981');
+            radarCtx.fill();
+        });
+
+        const rect = container.getBoundingClientRect();
+        const vw = (rect.width / camera.zoom) * scale;
+        const vh = (rect.height / camera.zoom) * scale;
+        const vx = (-camera.x - (bounds.minX + bounds.maxX) / 2) * scale - vw / 2;
+        const vy = (-camera.y - (bounds.minY + bounds.maxY) / 2) * scale - vh / 2;
+
+        radarCtx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+        radarCtx.lineWidth = 1;
+        radarCtx.strokeRect(vx, vy, vw, vh);
+
+        radarCtx.restore();
+    }
+
+    function getGraphBounds() {
+        let minX = -400, maxX = 400, minY = -300, maxY = 300;
+        filteredNodes.forEach(n => {
+            if (n.x < minX) minX = n.x;
+            if (n.x > maxX) maxX = n.x;
+            if (n.y < minY) minY = n.y;
+            if (n.y > maxY) maxY = n.y;
+        });
+        return { minX, maxX, minY, maxY };
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  INTERACTIVE STICKY NOTE HUD CARD SYSTEM (WITH CONNECTION ARCHITECTURE)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    function screenCoords(nodeX, nodeY) {
+        const rect = container.getBoundingClientRect();
+        return {
+            x: (nodeX * camera.zoom) + (rect.width / 2) + camera.x,
+            y: (nodeY * camera.zoom) + (rect.height / 2) + camera.y
+        };
+    }
+
+    function createHudCard(node, isPinned = false) {
+        const card = document.createElement('div');
+        card.className = `sticky-hud-card ${getThemeClass(node)} ${isPinned ? 'pinned' : ''}`;
+        card.id = `hud-${node.id}`;
+        card.dataset.nodeId = node.id;
+
+        const meta = node.meta || {};
+        let entityTag = 'Control Plane Hub';
+        let metricsHtml = '';
+        let connHtml = '';
+        let actionsHtml = '';
+
+        if (node.type === 'core') {
+            entityTag = 'Security Authority Hub';
+            metricsHtml = `
+                <div class="hud-metric-item">
+                    <span class="hud-metric-label">Enrolled Fleet</span>
+                    <span class="hud-metric-val">${meta.enrolled_nodes || 0} compute nodes</span>
+                </div>
+                <div class="hud-metric-item">
+                    <span class="hud-metric-label">Managed Users</span>
+                    <span class="hud-metric-val">${meta.managed_identities || 0} OS accounts</span>
+                </div>
+            `;
+            connHtml = `
+                <div class="hud-conn-box">
+                    <div class="hud-conn-title">Connection Architecture</div>
+                    <div class="hud-conn-row">
+                        <span>Role</span>
+                        <span class="mono">Central Orchestration Hub</span>
+                    </div>
+                    <div class="hud-conn-row">
+                        <span>Transport Protocol</span>
+                        <span class="mono">HTTP/REST · Port ${meta.port}</span>
+                    </div>
+                    <div class="hud-conn-row">
+                        <span>Channel Security</span>
+                        <span class="mono">${meta.channel || 'HMAC-SHA256 JWT'}</span>
+                    </div>
+                </div>
+            `;
+            actionsHtml = `
+                <a href="/machines" class="hud-act-btn primary">Manage Fleet Nodes →</a>
+                <a href="/settings" class="hud-act-btn">Security Settings</a>
+            `;
+        } else if (node.type === 'machine') {
+            entityTag = `Compute Node · ${meta.os_type}`;
+            metricsHtml = `
+                <div class="hud-metric-item">
+                    <span class="hud-metric-label">IP Address</span>
+                    <span class="hud-metric-val mono">${meta.ip_address}</span>
+                </div>
+                <div class="hud-metric-item">
+                    <span class="hud-metric-label">Daemon Status</span>
+                    <span class="hud-metric-val" style="color:${node.status === 'active' ? 'var(--accent-green)' : 'var(--accent-rose)'};">${(node.status || 'inactive').toUpperCase()}</span>
+                </div>
+            `;
+            connHtml = `
+                <div class="hud-conn-box">
+                    <div class="hud-conn-title">Explicit Node Connection</div>
+                    <div class="hud-conn-row">
+                        <span>Upstream Link</span>
+                        <span class="mono">niyanta Core (127.0.0.1:5000)</span>
+                    </div>
+                    <div class="hud-conn-row">
+                        <span>Agent Protocol</span>
+                        <span class="mono">HTTP/REST · Port ${meta.port || 5001}</span>
+                    </div>
+                    <div class="hud-conn-row">
+                        <span>Auth Verification</span>
+                        <span class="mono">HMAC-SHA256 Signed JWT</span>
+                    </div>
+                    <div class="hud-conn-row">
+                        <span>Hosted Identities</span>
+                        <span class="mono">${meta.assigned_users || 0} local accounts</span>
+                    </div>
+                </div>
+            `;
+            actionsHtml = `
+                <button type="button" class="hud-act-btn primary" onclick="probeNode(${meta.id})">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px; height:12px;"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                    Probe Daemon
+                </button>
+                <a href="/sessions/${meta.id}" class="hud-act-btn">Sessions</a>
+                <button type="button" class="hud-act-btn" onclick="copyToClipboard('${meta.ip_address}', 'Node IP')">Copy IP</button>
+            `;
+        } else if (node.type === 'user') {
+            entityTag = `Managed OS User · ${meta.status}`;
+            metricsHtml = `
+                <div class="hud-metric-item">
+                    <span class="hud-metric-label">RBAC Role</span>
+                    <span class="hud-metric-val" style="color:var(--accent-cyan); font-weight:700;">${meta.role || 'Unassigned'}</span>
+                </div>
+                <div class="hud-metric-item">
+                    <span class="hud-metric-label">Active Guardrails</span>
+                    <span class="hud-metric-val" style="color:#818cf8; font-weight:700;">${meta.policies_count || 0} Policies Enforced</span>
+                </div>
+            `;
+
+            let policiesBadgesHtml = '';
+            if (meta.policies && meta.policies.length > 0) {
+                policiesBadgesHtml = `
+                    <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;">
+                        ${meta.policies.map(p => `
+                            <span class="badge active" style="font-size:9.5px; padding:2px 6px; background:rgba(99,102,241,0.2); border-color:rgba(99,102,241,0.4); color:#818cf8;" title="${escapeHtml(p.type)}">
+                                🛡 ${escapeHtml(p.name)}
+                            </span>
+                        `).join('')}
+                    </div>
+                `;
+            } else {
+                policiesBadgesHtml = `<span style="font-size:10.5px; color:var(--text-muted);">Default Baseline Policies</span>`;
+            }
+
+            connHtml = `
+                <div class="hud-conn-box">
+                    <div class="hud-conn-title">OS Provisioning & Enforced Guardrails</div>
+                    <div class="hud-conn-row">
+                        <span>Host Node</span>
+                        <span class="mono">${meta.host_node} (${meta.host_ip || 'Node IP'})</span>
+                    </div>
+                    <div class="hud-conn-row">
+                        <span>Account Type</span>
+                        <span class="mono">Local ${meta.os_type || 'Linux'} Account</span>
+                    </div>
+                    <div class="hud-conn-row" style="margin-top:2px;">
+                        <span>Enforced Policies (${meta.policies_count || 0})</span>
+                    </div>
+                    ${policiesBadgesHtml}
+                </div>
+            `;
+            actionsHtml = `
+                <a href="/users" class="hud-act-btn primary">Directory Record</a>
+                <button type="button" class="hud-act-btn" onclick="isolateNode('${node.id}')">Trace Link</button>
+                <button type="button" class="hud-act-btn" onclick="copyToClipboard('${node.label}', 'Username')">Copy Name</button>
+            `;
+        } else if (node.type === 'role') {
+            entityTag = 'RBAC Security Role · Access Privilege';
+            const assignedNames = (meta.assigned_usernames && meta.assigned_usernames.length > 0)
+                ? meta.assigned_usernames.join(', ')
+                : `${meta.assigned_count || 0} accounts`;
+
+            metricsHtml = `
+                <div class="hud-metric-item">
+                    <span class="hud-metric-label">Access Scope</span>
+                    <span class="hud-metric-val" style="color:#c084fc; font-weight:700;">${meta.scope_level || 'Read-Only'}</span>
+                </div>
+                <div class="hud-metric-item">
+                    <span class="hud-metric-label">Assigned Users</span>
+                    <span class="hud-metric-val mono" title="${assignedNames}">${assignedNames}</span>
+                </div>
+            `;
+            connHtml = `
+                <div class="hud-conn-box">
+                    <div class="hud-conn-title">RBAC Governance & Permissions</div>
+                    <div class="hud-conn-row">
+                        <span>Role Definition</span>
+                        <span class="mono">${escapeHtml(meta.name || node.label)}</span>
+                    </div>
+                    <div class="hud-conn-row">
+                        <span>Privilege Level</span>
+                        <span style="font-size:10.5px; color:#c084fc;">${meta.scope_level || 'Read-Only'} Access Tier</span>
+                    </div>
+                    <div class="hud-conn-row">
+                        <span>Permission Scope</span>
+                        <span style="font-size:10px; color:var(--text-secondary);">${escapeHtml(meta.description || 'Access privileges granted to assigned accounts')}</span>
+                    </div>
+                </div>
+            `;
+            actionsHtml = `
+                <a href="/roles" class="hud-act-btn primary">Manage RBAC Roles →</a>
+                <button type="button" class="hud-act-btn" onclick="isolateNode('${node.id}')">Trace Users</button>
+            `;
+        }
+
+        card.innerHTML = `
+            <div class="sticky-hud-header">
+                <div class="hud-title-group">
+                    <span class="hud-entity-tag">${entityTag}</span>
+                    <div class="hud-title">${escapeHtml(node.label)}</div>
+                </div>
+                <div class="hud-ctrls">
+                    <span class="hud-drag-handle" title="Drag sticky card anywhere">⠿</span>
+                    <button class="hud-pin-btn ${isPinned ? 'pinned' : ''}" onclick="togglePinCard('${node.id}')" title="${isPinned ? 'Unpin Sticky Note' : 'Pin Sticky Note to Canvas'}">
+                        📌
+                    </button>
+                    <button class="hud-close-btn" onclick="dismissHudCard('${node.id}')" title="Dismiss">&times;</button>
+                </div>
+            </div>
+            <div class="hud-metrics">
+                ${metricsHtml}
+            </div>
+            ${connHtml}
+            <div class="hud-actions">
+                ${actionsHtml}
+            </div>
+        `;
+
+        card.addEventListener('mouseenter', () => {
+            isMouseOverCard = true;
+            if (hoverDismissTimeout) {
+                clearTimeout(hoverDismissTimeout);
+                hoverDismissTimeout = null;
+            }
+        });
+
+        card.addEventListener('mouseleave', () => {
+            isMouseOverCard = false;
+            scheduleCardDismissal();
+        });
+
+        setupCardDragging(card, node);
+        hudContainer.appendChild(card);
+        return card;
+    }
+
+    function scheduleCardDismissal() {
+        if (hoverDismissTimeout) clearTimeout(hoverDismissTimeout);
+        hoverDismissTimeout = setTimeout(() => {
+            if (!isMouseOverCard && !hoveredNode && activeHoverCard) {
+                activeHoverCard.remove();
+                activeHoverCard = null;
+                updateHudCardPositions();
+            }
+        }, 350);
+    }
+
+    function getThemeClass(node) {
+        if (node.type === 'core') return 'type-core';
+        if (node.type === 'machine') return node.meta.os_type === 'Windows' ? 'type-machine-windows' : 'type-machine-linux';
+        if (node.type === 'user') return 'type-user';
+        if (node.type === 'role') return 'type-role';
+        return '';
+    }
+
+    function setupCardDragging(card, node) {
+        const handle = card.querySelector('.hud-drag-handle');
+        if (!handle) return;
+
+        let isDragging = false;
+        let startX = 0, startY = 0;
+        let cardStartX = 0, cardStartY = 0;
+
+        handle.addEventListener('mousedown', e => {
+            e.stopPropagation();
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            cardStartX = parseFloat(card.style.left) || 0;
+            cardStartY = parseFloat(card.style.top) || 0;
+
+            if (!pinnedCards.has(node.id)) {
+                if (activeHoverCard === card) activeHoverCard = null;
+                pinnedCards.set(node.id, { cardEl: card, customX: cardStartX, customY: cardStartY });
+                card.classList.add('pinned');
+                const pinBtn = card.querySelector('.hud-pin-btn');
+                if (pinBtn) pinBtn.classList.add('pinned');
+            }
+        });
+
+        window.addEventListener('mousemove', e => {
+            if (!isDragging) return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            const newLeft = cardStartX + dx;
+            const newTop = cardStartY + dy;
+
+            card.style.left = `${newLeft}px`;
+            card.style.top = `${newTop}px`;
+
+            const pinData = pinnedCards.get(node.id);
+            if (pinData) {
+                pinData.customX = newLeft;
+                pinData.customY = newTop;
+            }
+
+            updateHudCardPositions();
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+    }
+
+    window.togglePinCard = function(nodeId) {
+        const node = filteredNodes.find(n => n.id === nodeId);
+        if (!node) return;
+
+        if (pinnedCards.has(nodeId)) {
+            const pinData = pinnedCards.get(nodeId);
+            if (pinData && pinData.cardEl) pinData.cardEl.remove();
+            pinnedCards.delete(nodeId);
+            showToast(`Sticky note unpinned for ${node.label}`, 'info');
+        } else {
+            if (activeHoverCard && activeHoverCard.dataset.nodeId === nodeId) {
+                activeHoverCard.remove();
+                activeHoverCard = null;
+            }
+            const card = createHudCard(node, true);
+            pinnedCards.set(nodeId, { cardEl: card });
+            showToast(`Sticky note pinned for ${node.label}`, 'success');
+        }
+    };
+
+    window.dismissHudCard = function(nodeId) {
+        if (pinnedCards.has(nodeId)) {
+            const pinData = pinnedCards.get(nodeId);
+            if (pinData && pinData.cardEl) pinData.cardEl.remove();
+            pinnedCards.delete(nodeId);
+        }
+        if (activeHoverCard && activeHoverCard.dataset.nodeId === nodeId) {
+            activeHoverCard.remove();
+            activeHoverCard = null;
+        }
+    };
+
+    function updateHudCardPositions() {
+        connectorSvg.innerHTML = '';
+
+        pinnedCards.forEach((pinData, nodeId) => {
+            const node = filteredNodes.find(n => n.id === nodeId);
+            if (!node || !pinData.cardEl) return;
+            positionHudCard(pinData.cardEl, node, pinData.customX, pinData.customY);
+        });
+
+        if (activeHoverCard) {
+            const node = filteredNodes.find(n => n.id === activeHoverCard.dataset.nodeId);
+            if (node) {
+                positionHudCard(activeHoverCard, node);
+            }
+        }
+    }
+
+    function positionHudCard(card, node, customX, customY) {
+        const pos = screenCoords(node.x, node.y);
+        const cardW = 320;
+        const cardH = card.offsetHeight || 220;
+        const offsetDist = 50;
+
+        let left, top;
+
+        if (typeof customX === 'number' && typeof customY === 'number') {
+            left = customX;
+            top = customY;
+        } else {
+            left = pos.x + offsetDist;
+            top = pos.y - (cardH / 2);
+
+            const rect = container.getBoundingClientRect();
+            if (left + cardW > rect.width - 20) {
+                left = pos.x - cardW - offsetDist;
+            }
+            if (top < 70) top = 70;
+            if (top + cardH > rect.height - 70) top = rect.height - cardH - 70;
+
+            card.style.left = `${left}px`;
+            card.style.top = `${top}px`;
+        }
+
+        const anchorX = left < pos.x ? left + cardW : left;
+        const anchorY = top + (cardH / 2);
+
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        const cx1 = (pos.x + anchorX) / 2;
+        const d = `M ${pos.x} ${pos.y} C ${cx1} ${pos.y}, ${cx1} ${anchorY}, ${anchorX} ${anchorY}`;
+        line.setAttribute('d', d);
+        line.setAttribute('class', 'hud-anchor-line');
+        connectorSvg.appendChild(line);
+    }
+
+    // ── Dependency Tracing / Spotlight Mode ─────────────────────────────────
+    window.isolateNode = function(nodeId) {
+        const node = filteredNodes.find(n => n.id === nodeId);
+        if (!node) return;
+
+        spotlightNode = node;
+        spotlightTargetName.textContent = node.label;
+        spotlightBar.style.display = 'flex';
+
+        camera.targetX = -node.x * camera.zoom;
+        camera.targetY = -node.y * camera.zoom;
+
+        showToast(`Tracing connection path for ${node.label}`, 'info');
+    };
+
+    document.getElementById('clearSpotlightBtn').addEventListener('click', () => {
+        spotlightNode = null;
+        spotlightBar.style.display = 'none';
+        showToast('View reset to full cluster', 'info');
+    });
+
+    // ── Direct Daemon Health Check Trigger from HUD ────────────────────────
+    window.probeNode = function(machineId) {
+        showToast(`Probing compute daemon #${machineId}...`, 'info');
+        fetch('/api/health_check/' + machineId)
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'online') {
+                    showToast(`Node #${machineId} healthy! Ping: ${data.latency_ms || 3}ms`, 'success');
+                } else {
+                    showToast(`Node #${machineId} unreachable on port 5001`, 'error');
+                }
+                // Refresh topology state in real-time
+                loadTopology(false);
+            })
+            .catch(() => showToast(`Probe network error connecting to Node #${machineId}`, 'error'));
+    };
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  MOUSE, TOUCH & INTERACTIVE CAMERA NAVIGATION
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    function getNodeAt(x, y) {
+        const rect = container.getBoundingClientRect();
+        const worldX = (x - rect.width / 2 - camera.x) / camera.zoom;
+        const worldY = (y - rect.height / 2 - camera.y) / camera.zoom;
+
+        for (let i = filteredNodes.length - 1; i >= 0; i--) {
+            const n = filteredNodes[i];
+            const dx = worldX - n.x;
+            const dy = worldY - n.y;
+            const radius = (n.type === 'core' ? 36 : 28) + 8;
+            if (dx * dx + dy * dy < radius * radius) {
+                return n;
+            }
+        }
+        return null;
+    }
+
+    canvas.addEventListener('mousedown', e => {
+        const rect = container.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        const clickedNode = getNodeAt(mouseX, mouseY);
+
+        mouseDownInfo = {
+            x: mouseX,
+            y: mouseY,
+            time: Date.now(),
+            node: clickedNode
+        };
+
+        if (clickedNode) {
+            draggedNode = clickedNode;
+            canvas.style.cursor = 'grabbing';
+        } else {
+            camera.isDragging = true;
+            camera.dragStartX = mouseX - camera.x;
+            camera.dragStartY = mouseY - camera.y;
+            canvas.style.cursor = 'grabbing';
+        }
+    });
+
+    window.addEventListener('mousemove', e => {
+        const rect = container.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        if (draggedNode) {
+            draggedNode.x = (mouseX - rect.width / 2 - camera.x) / camera.zoom;
+            draggedNode.y = (mouseY - rect.height / 2 - camera.y) / camera.zoom;
+            draggedNode.targetX = draggedNode.x;
+            draggedNode.targetY = draggedNode.y;
+        } else if (camera.isDragging) {
+            camera.x = mouseX - camera.dragStartX;
+            camera.y = mouseY - camera.dragStartY;
+            camera.targetX = camera.x;
+            camera.targetY = camera.y;
+        } else {
+            // If the mouse cursor is currently over any sticky HUD card, keep card alive!
+            if (e.target && e.target.closest && e.target.closest('.sticky-hud-card')) {
+                isMouseOverCard = true;
+                if (hoverDismissTimeout) {
+                    clearTimeout(hoverDismissTimeout);
+                    hoverDismissTimeout = null;
+                }
+                return;
+            }
+
+            const found = getNodeAt(mouseX, mouseY);
+            if (found !== hoveredNode) {
+                if (found) {
+                    if (hoverDismissTimeout) {
+                        clearTimeout(hoverDismissTimeout);
+                        hoverDismissTimeout = null;
+                    }
+                    hoveredNode = found;
+                    canvas.style.cursor = 'pointer';
+
+                    // If activeHoverCard belongs to another node, remove it
+                    if (activeHoverCard && activeHoverCard.dataset.nodeId !== hoveredNode.id) {
+                        activeHoverCard.remove();
+                        activeHoverCard = null;
+                    }
+
+                    if (!pinnedCards.has(hoveredNode.id) && !activeHoverCard) {
+                        activeHoverCard = createHudCard(hoveredNode, false);
+                    }
+                } else {
+                    hoveredNode = null;
+                    canvas.style.cursor = 'grab';
+                    scheduleCardDismissal();
+                }
+            } else if (found) {
+                if (hoverDismissTimeout) {
+                    clearTimeout(hoverDismissTimeout);
+                    hoverDismissTimeout = null;
+                }
+            }
+        }
+    });
+
+    window.addEventListener('mouseup', e => {
+        const rect = container.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        if (mouseDownInfo) {
+            const dist = Math.hypot(mouseX - mouseDownInfo.x, mouseY - mouseDownInfo.y);
+            const elapsed = Date.now() - mouseDownInfo.time;
+
+            if (dist < 8 && elapsed < 600) {
+                if (mouseDownInfo.node) {
+                    // Clicked directly on a node -> PIN / LOCK the HUD card!
+                    const clicked = mouseDownInfo.node;
+                    if (pinnedCards.has(clicked.id)) {
+                        togglePinCard(clicked.id);
+                    } else {
+                        if (activeHoverCard && activeHoverCard.dataset.nodeId === clicked.id) {
+                            pinnedCards.set(clicked.id, { cardEl: activeHoverCard });
+                            activeHoverCard.classList.add('pinned');
+                            const pinBtn = activeHoverCard.querySelector('.hud-pin-btn');
+                            if (pinBtn) pinBtn.classList.add('pinned');
+                            activeHoverCard = null;
+                            showToast(`Pinned details for ${clicked.label}`, 'success');
+                        } else {
+                            togglePinCard(clicked.id);
+                        }
+                    }
+                } else {
+                    // Clicked empty background canvas -> dismiss active hover card
+                    if (activeHoverCard && !isMouseOverCard) {
+                        activeHoverCard.remove();
+                        activeHoverCard = null;
+                        updateHudCardPositions();
+                    }
+                }
+            }
+        }
+
+        camera.isDragging = false;
+        draggedNode = null;
+        mouseDownInfo = null;
+        canvas.style.cursor = hoveredNode ? 'pointer' : 'grab';
+    });
+
+    // Smooth Zoom with Mouse Wheel
+    container.addEventListener('wheel', e => {
+        e.preventDefault();
+        const zoomFactor = e.deltaY < 0 ? 1.14 : 0.88;
+        const newZoom = Math.min(Math.max(camera.targetZoom * zoomFactor, 0.35), 2.8);
+
+        const rect = container.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left - rect.width / 2;
+        const mouseY = e.clientY - rect.top - rect.height / 2;
+
+        camera.targetX -= mouseX * (newZoom / camera.targetZoom - 1);
+        camera.targetY -= mouseY * (newZoom / camera.targetZoom - 1);
+        camera.targetZoom = newZoom;
+    }, { passive: false });
+
+    // Minimap Click to Pan
+    radarCanvas.addEventListener('click', e => {
+        const rect = radarCanvas.getBoundingClientRect();
+        const clickX = e.clientX - rect.left - 75;
+        const clickY = e.clientY - rect.top - 48;
+
+        const bounds = getGraphBounds();
+        const spanX = Math.max(bounds.maxX - bounds.minX, 450);
+        const spanY = Math.max(bounds.maxY - bounds.minY, 350);
+        const scale = Math.min(135 / spanX, 80 / spanY);
+
+        camera.targetX = -(clickX / scale + (bounds.minX + bounds.maxX) / 2) * camera.zoom;
+        camera.targetY = -(clickY / scale + (bounds.minY + bounds.maxY) / 2) * camera.zoom;
+    });
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  CONTROLS, SEARCH & KEYBOARD SHORTCUTS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    function recenterCamera() {
+        camera.targetX = 0;
+        camera.targetY = 0;
+        camera.targetZoom = 1;
+    }
+
+    document.getElementById('recenterBtn').addEventListener('click', recenterCamera);
+
+    document.getElementById('zoomInBtn').addEventListener('click', () => {
+        camera.targetZoom = Math.min(camera.targetZoom * 1.25, 2.8);
+    });
+
+    document.getElementById('zoomOutBtn').addEventListener('click', () => {
+        camera.targetZoom = Math.max(camera.targetZoom * 0.8, 0.35);
+    });
+
+    document.getElementById('clearPinsBtn').addEventListener('click', () => {
+        pinnedCards.forEach(pinData => pinData.cardEl.remove());
+        pinnedCards.clear();
+        if (activeHoverCard) {
+            activeHoverCard.remove();
+            activeHoverCard = null;
+        }
+        connectorSvg.innerHTML = '';
+        showToast('All sticky notes dismissed', 'info');
+    });
+
+    // RBAC Governance Role Visibility Toggle
+    const toggleRolesBtn = document.getElementById('toggleRolesBtn');
+    if (toggleRolesBtn) {
+        toggleRolesBtn.addEventListener('click', () => {
+            showRolesInGraph = !showRolesInGraph;
+            toggleRolesBtn.classList.toggle('active', showRolesInGraph);
+            applyFilter(activeFilter);
+            showToast(showRolesInGraph ? 'RBAC Role nodes displayed' : 'RBAC Role nodes hidden (Clean Fleet View)', 'info');
+        });
+    }
+
+    // Architecture Layout Switcher
+    document.querySelectorAll('.layout-switch-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.layout-switch-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            currentLayout = this.dataset.layout;
+            calculateLayoutTargets(graphData.nodes, currentLayout, false);
+            showToast(`Switched to ${this.textContent.trim()} view`, 'info');
+        });
+    });
+
+    // Entity Filter Chips
+    document.querySelectorAll('.filter-chip').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.filter-chip').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            applyFilter(this.dataset.filter);
+        });
+    });
+
+    // Node Search & Auto-Pan Focus
+    const searchInput = document.getElementById('topologySearch');
+    const clearSearch = document.getElementById('clearSearchBtn');
+
+    searchInput.addEventListener('input', function() {
+        const q = this.value.trim().toLowerCase();
+        clearSearch.style.display = q ? 'block' : 'none';
+        if (!q) return;
+
+        const match = filteredNodes.find(n =>
+            n.label.toLowerCase().includes(q) ||
+            (n.meta && n.meta.ip_address && n.meta.ip_address.includes(q)) ||
+            (n.meta && n.meta.role && n.meta.role.toLowerCase().includes(q))
+        );
+
+        if (match) {
+            camera.targetX = -match.x * camera.zoom;
+            camera.targetY = -match.y * camera.zoom;
+
+            hoveredNode = match;
+            if (activeHoverCard) activeHoverCard.remove();
+            if (!pinnedCards.has(match.id)) {
+                activeHoverCard = createHudCard(match, false);
+            }
+        }
+    });
+
+    clearSearch.addEventListener('click', () => {
+        searchInput.value = '';
+        clearSearch.style.display = 'none';
+        hoveredNode = null;
+        if (activeHoverCard) {
+            activeHoverCard.remove();
+            activeHoverCard = null;
+        }
+    });
+
+    // Keyboard Shortcuts
+    document.addEventListener('keydown', e => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+        if (e.key === 'r' || e.key === 'R') recenterCamera();
+        if (e.key === '1') document.querySelector('.layout-switch-btn[data-layout="layered"]').click();
+        if (e.key === '2') document.querySelector('.layout-switch-btn[data-layout="radial"]').click();
+        if (e.key === '3') document.querySelector('.layout-switch-btn[data-layout="enclaves"]').click();
+        if (e.key === '+' || e.key === '=') document.getElementById('zoomInBtn').click();
+        if (e.key === '-' || e.key === '_') document.getElementById('zoomOutBtn').click();
+        if (e.key === 'Escape') {
+            if (spotlightNode) {
+                document.getElementById('clearSpotlightBtn').click();
+            } else {
+                document.getElementById('clearPinsBtn').click();
+            }
+        }
+    });
+
+    // Boot System & Start Real-Time Telemetry Polling
+    resizeCanvas();
+    loadTopology(true);
+    startRealtimeSync();
+    render();
+
+})();
+</script>
+{% endblock %}

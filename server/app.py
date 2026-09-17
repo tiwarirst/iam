@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Aegis-IAM — Central Flask Dashboard
+niyanta-IAM — Central Flask Dashboard
 =====================================
 Manages target machines, deploys/removes user accounts on remote agents,
 and collects audit logs — all from a single web interface.
@@ -36,14 +36,14 @@ from server.models import (
 
 # ── App factory ──────────────────────────────────────────────────────────────
 app = Flask(__name__)
-app.secret_key = "aegis-dashboard-session-secret"
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", os.environ.get("NIYANTA_SECRET_KEY", "niyanta-dashboard-session-secret"))
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{os.path.join(BASE_DIR, 'aegis_iam.db')}"
+app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{os.path.join(BASE_DIR, 'niyanta_iam.db')}"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db.init_app(app)
-logger = setup_logger("aegis-server")
+logger = setup_logger("niyanta-server")
 
 
 # ── Helper: call agent API ───────────────────────────────────────────────────
@@ -60,7 +60,13 @@ def _agent_request(ip: str, endpoint: str, method: str = "GET", json_data: dict 
             resp = requests.post(url, json=json_data, headers=headers, timeout=10)
         else:
             resp = requests.get(url, headers=headers, timeout=10)
-        return resp.status_code < 400, resp.json()
+        
+        try:
+            payload = resp.json()
+        except Exception:
+            payload = {"message": resp.text[:200] if resp.text else f"HTTP Status {resp.status_code}"}
+        
+        return resp.status_code < 400, payload
     except requests.ConnectionError:
         return False, {"message": f"Cannot reach agent at {ip}:{AGENT_PORT}"}
     except Exception as e:
@@ -176,15 +182,19 @@ def api_health_check(machine_id):
 def api_alerts():
     """Return recent alerts as JSON."""
     alerts = Alert.query.order_by(Alert.created_at.desc()).limit(20).all()
-    return jsonify([{
+    serialized = [{
         "id": a.id,
         "title": a.title,
-        "message": a.message,
+        "message": a.message or "",
         "severity": a.severity,
         "is_read": a.is_read,
         "source": a.source,
         "created_at": a.created_at.strftime("%Y-%m-%d %H:%M:%S"),
-    } for a in alerts])
+    } for a in alerts]
+    return jsonify({
+        "alerts": serialized,
+        "unread_count": len([a for a in alerts if not a.is_read]),
+    })
 
 
 @app.route("/api/alerts/<int:alert_id>/read", methods=["POST"])
@@ -221,14 +231,223 @@ def api_search():
     # Search roles
     for r in Role.query.all():
         if q in r.name.lower():
-            results.append({"type": "role", "title": r.name, "subtitle": r.description, "url": url_for("roles_page")})
+            results.append({"type": "role", "title": r.name, "subtitle": r.description or "", "url": url_for("roles_page")})
 
     return jsonify({"results": results[:15]})
+
+
+@app.route("/api/topology")
+def api_topology():
+    """Return relational topology graph data: Core -> Machines -> Users."""
+    from shared.config import JWT_ALGORITHM, AGENT_PORT as CFG_AGENT_PORT
+
+    include_empty_roles = request.args.get("roles", "false").lower() == "true"
+
+    machines = TargetMachine.query.all()
+    users = ManagedUser.query.all()
+    roles = Role.query.all()
+
+    nodes = []
+    edges = []
+
+    # 1. Central Core Control Plane Node
+    nodes.append({
+        "id": "node_core",
+        "label": "niyanta-IAM Core",
+        "type": "core",
+        "status": "active",
+        "icon": "shield",
+        "meta": {
+            "entity": "Security Control Plane",
+            "version": "v2.0 Enterprise",
+            "runtime": "WSGI / Python 3.11",
+            "port": 5000,
+            "channel": f"Encrypted JWT ({JWT_ALGORITHM})",
+            "enrolled_nodes": len(machines),
+            "managed_identities": len(users),
+            "active_nodes": sum(1 for m in machines if m.status == "active"),
+            "description": "Central identity authority & daemon orchestrator",
+        }
+    })
+
+    # 2. Target Machine Compute Nodes
+    for m in machines:
+        m_id = f"machine_{m.id}"
+        assigned_users = [u for u in users if u.machine_id == m.id]
+        m_status = m.status or "inactive"
+        agent_port = getattr(m, "port", None) or CFG_AGENT_PORT
+
+        nodes.append({
+            "id": m_id,
+            "label": m.hostname,
+            "type": "machine",
+            "status": m_status,
+            "icon": "server",
+            "meta": {
+                "entity": "Target Compute Node",
+                "id": m.id,
+                "hostname": m.hostname,
+                "ip_address": m.ip_address,
+                "port": agent_port,
+                "os_type": m.os_type or "Linux",
+                "status": m_status,
+                "description": m.description or "No description provided",
+                "last_seen": m.last_seen.strftime("%b %d, %H:%M") if m.last_seen else "Never",
+                "assigned_users": len(assigned_users),
+                "connection_type": "Encrypted mTLS Daemon Link",
+                "connection_protocol": f"HTTP/REST via Port {agent_port}",
+                "auth_method": f"HMAC-SHA256 Signed JWT Token",
+            }
+        })
+
+        # Explicit Connection: Core Control Plane -> Target Machine
+        edges.append({
+            "id": f"edge_core_{m_id}",
+            "from": "node_core",
+            "to": m_id,
+            "type": "jwt_link",
+            "label": f"mTLS / JWT :{agent_port}",
+            "protocol": f"REST / Port {agent_port}",
+            "auth": "HMAC-SHA256 JWT",
+            "status": m_status,
+            "summary": f"Secure control channel from Hub to {m.hostname} ({m.ip_address})"
+        })
+
+    # 3. User Identity Nodes
+    for u in users:
+        u_id = f"user_{u.id}"
+        role_name = u.role.name if u.role else "Unassigned"
+        role_color = u.role.color if u.role else "disabled"
+        parent_machine = u.machine if u.machine else None
+        parent_machine_label = parent_machine.hostname if parent_machine else "Unlinked"
+
+        user_policies_list = [{"id": p.id, "name": p.name, "type": p.policy_type} for p in u.policies]
+        nodes.append({
+            "id": u_id,
+            "label": u.username,
+            "type": "user",
+            "status": u.status or "active",
+            "icon": "user",
+            "meta": {
+                "entity": "Managed OS Identity",
+                "id": u.id,
+                "username": u.username,
+                "full_name": u.full_name or "—",
+                "email": u.email or "—",
+                "role": role_name.upper(),
+                "role_color": role_color,
+                "status": u.status or "active",
+                "host_node": parent_machine_label,
+                "host_ip": parent_machine.ip_address if parent_machine else "None",
+                "os_type": parent_machine.os_type if parent_machine else "Linux",
+                "created_at": u.created_at.strftime("%b %d, %Y") if u.created_at else "—",
+                "provision_type": "Native OS Account",
+                "provision_target": f"{parent_machine_label} ({parent_machine.os_type if parent_machine else 'Linux'})",
+                "policies": user_policies_list,
+                "policies_count": len(user_policies_list),
+            }
+        })
+
+        # Explicit Connection: Target Machine -> Provisioned User
+        if u.machine_id:
+            edges.append({
+                "id": f"edge_machine_{u.machine_id}_{u_id}",
+                "from": f"machine_{u.machine_id}",
+                "to": u_id,
+                "type": "provision_link",
+                "label": f"OS Account ({parent_machine_label})",
+                "protocol": f"Local OS Account - {role_name.upper()}",
+                "status": u.status or "active",
+                "summary": f"User '{u.username}' provisioned on {parent_machine_label} with {role_name.upper()} privileges"
+            })
+        else:
+            edges.append({
+                "id": f"edge_core_{u_id}",
+                "from": "node_core",
+                "to": u_id,
+                "type": "provision_link",
+                "label": "Unassigned Identity",
+                "protocol": "Pending Machine Assignment",
+                "status": u.status or "active",
+                "summary": f"User '{u.username}' registered in catalog, unassigned to host"
+            })
+
+    # 4. Only Include Roles that actually have assigned users (or if explicitly requested)
+    for r in roles:
+        assigned_users_for_role = [u for u in users if u.role_id == r.id]
+        assigned_count = len(assigned_users_for_role)
+
+        # Skip empty roles by default to prevent visual clutter and randomness
+        if assigned_count == 0 and not include_empty_roles:
+            continue
+
+        r_id = f"role_{r.id}"
+        scope_level = "Read-Only Governance" if r.name.lower() in ["viewer", "auditor"] else "Administrative Access"
+        nodes.append({
+            "id": r_id,
+            "label": f"ROLE: {r.name.upper()}",
+            "short_label": r.name.upper(),
+            "type": "role",
+            "status": "active",
+            "icon": "shield",
+            "meta": {
+                "entity": "RBAC Security Role",
+                "id": r.id,
+                "name": r.name,
+                "role_type": r.name.upper(),
+                "color": r.color or "purple",
+                "scope_level": scope_level,
+                "description": r.description or f"Enforces {r.name.upper()} permission tier across linked accounts",
+                "assigned_count": assigned_count,
+                "assigned_usernames": [u.username for u in assigned_users_for_role],
+            }
+        })
+
+        # Connect Users to their respective Roles
+        for u in assigned_users_for_role:
+            edges.append({
+                "id": f"edge_user_{u.id}_{r_id}",
+                "from": f"user_{u.id}",
+                "to": r_id,
+                "type": "rbac_link",
+                "label": f"Role: {r.name.upper()}",
+                "protocol": f"RBAC Authorization ({r.name.upper()})",
+                "status": "active",
+                "summary": f"OS user '{u.username}' granted '{r.name.upper()}' access permissions ({scope_level})"
+            })
+
+    return jsonify({
+        "nodes": nodes,
+        "edges": edges,
+        "stats": {
+            "total_nodes": len(nodes),
+            "total_edges": len(edges),
+            "machines": len(machines),
+            "users": len(users),
+            "roles": sum(1 for n in nodes if n["type"] == "role"),
+            "active_machines": sum(1 for m in machines if m.status == "active"),
+            "timestamp": datetime.datetime.utcnow().strftime("%H:%M:%S UTC"),
+        }
+    })
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  PAGE ROUTES
 # ═══════════════════════════════════════════════════════════════════════════════
+
+# ── Cluster Topology Graph ───────────────────────────────────────────────────
+@app.route("/topology")
+def topology_page():
+    """Render the Interactive Cluster Topology & Graph View."""
+    machines = TargetMachine.query.all()
+    users = ManagedUser.query.all()
+    roles = Role.query.all()
+    return render_template(
+        "topology.html",
+        machines=machines,
+        users=users,
+        roles=roles,
+    )
 
 # ── Dashboard Home ───────────────────────────────────────────────────────────
 @app.route("/")
@@ -298,13 +517,13 @@ def add_machine():
 def delete_machine(machine_id):
     machine = TargetMachine.query.get_or_404(machine_id)
     hostname = machine.hostname
-    # Delete associated logs first
-    AuditLog.query.filter_by(machine_id=machine_id).delete()
+    # Preserve compliance audit trail: dissociate machine reference without erasing historical events
+    AuditLog.query.filter_by(machine_id=machine_id).update({"machine_id": None})
     ManagedUser.query.filter_by(machine_id=machine_id).delete()
     db.session.delete(machine)
     db.session.commit()
     _create_alert(f"Machine removed: {hostname}", severity="warning", source="machines")
-    flash(f"Machine '{hostname}' removed.", "success")
+    flash(f"Machine '{hostname}' removed (compliance logs preserved).", "success")
     return redirect(url_for("machines"))
 
 
@@ -341,8 +560,9 @@ def deploy_page():
     machines = TargetMachine.query.filter_by(status="active").all()
     all_machines = TargetMachine.query.all()
     roles = Role.query.all()
+    policies = Policy.query.filter_by(is_active=True).all()
     managed_users = ManagedUser.query.order_by(ManagedUser.created_at.desc()).all()
-    return render_template("deploy.html", machines=machines, all_machines=all_machines, roles=roles, managed_users=managed_users)
+    return render_template("deploy.html", machines=machines, all_machines=all_machines, roles=roles, policies=policies, managed_users=managed_users)
 
 
 @app.route("/deploy_user", methods=["POST"])
@@ -380,11 +600,21 @@ def deploy_user():
     )
 
     if success:
-        managed = ManagedUser(
-            username=username, role_id=role_id, machine_id=machine_id,
-            full_name=full_name, email=email, status="active",
+        user_record = ManagedUser(
+            machine_id=machine_id,
+            username=username,
+            full_name=full_name,
+            email=email,
+            role_id=role_id if role_id and role_id > 0 else None,
+            status="active",
         )
-        db.session.add(managed)
+        # Attach Selected Multi-Policies
+        policy_ids = request.form.getlist("policy_ids")
+        clean_pids = [int(p) for p in policy_ids if p.isdigit()]
+        if clean_pids:
+            user_record.policies = Policy.query.filter(Policy.id.in_(clean_pids)).all()
+
+        db.session.add(user_record)
         log = AuditLog(
             machine_id=machine_id,
             event_type="USER_CREATED",
@@ -448,7 +678,8 @@ def users_page():
     all_users = ManagedUser.query.order_by(ManagedUser.created_at.desc()).all()
     roles = Role.query.all()
     machines = TargetMachine.query.all()
-    return render_template("users.html", users=all_users, roles=roles, machines=machines)
+    policies = Policy.query.filter_by(is_active=True).all()
+    return render_template("users.html", users=all_users, roles=roles, machines=machines, policies=policies)
 
 
 @app.route("/toggle_user/<int:user_id>", methods=["POST"])
@@ -470,11 +701,18 @@ def edit_user(user_id):
     user = ManagedUser.query.get_or_404(user_id)
     user.full_name = request.form.get("full_name", user.full_name).strip()
     user.email = request.form.get("email", user.email).strip()
-    new_role_id = request.form.get("role_id", type=int)
-    if new_role_id:
-        user.role_id = new_role_id
+    raw_role_id = request.form.get("role_id", "").strip()
+    user.role_id = int(raw_role_id) if raw_role_id.isdigit() and int(raw_role_id) > 0 else None
+
+    # Multi-Policy Support: Attach multiple policies to single user
+    policy_ids = request.form.getlist("policy_ids")
+    clean_pids = [int(p) for p in policy_ids if p.isdigit()]
+    user.policies = Policy.query.filter(Policy.id.in_(clean_pids)).all() if clean_pids else []
+
     db.session.commit()
-    flash(f"User '{user.username}' updated.", "success")
+    policy_names = ", ".join(p.name for p in user.policies) or "None"
+    _create_alert(f"Policies updated for {user.username}", f"Active guardrails: {policy_names}", "info", "users")
+    flash(f"User '{user.username}' updated with {len(user.policies)} security policies.", "success")
     return redirect(url_for("users_page"))
 
 
@@ -580,23 +818,27 @@ def fetch_audit(machine_id):
             flash(f"No audit logs found on {machine.hostname} or agent returned empty response.", "warning")
             return redirect(url_for("audit_page"))
         
+        added_count = 0
         for entry in remote_logs[:20]:
             # Extract details from different possible fields
-            details = entry.get("raw", "") or entry.get("message", "") or str(entry)
-            log = AuditLog(
-                machine_id=machine_id,
-                event_type="REMOTE_AUTH",
-                severity="info",
-                actor="agent",
-                details=details[:500],  # Truncate for safety
-            )
-            db.session.add(log)
+            details = (entry.get("raw", "") or entry.get("message", "") or str(entry))[:500]
+            existing = AuditLog.query.filter_by(machine_id=machine_id, details=details).first()
+            if not existing:
+                log = AuditLog(
+                    machine_id=machine_id,
+                    event_type="REMOTE_AUTH",
+                    severity="info",
+                    actor="agent",
+                    details=details,
+                )
+                db.session.add(log)
+                added_count += 1
         
         db.session.commit()
-        logger.info(f"Successfully saved {len(remote_logs)} audit logs to database")
-        flash(f"✓ Fetched {len(remote_logs)} audit entries from {machine.hostname}.", "success")
+        logger.info(f"Successfully saved {added_count} new audit logs from {machine.hostname}")
+        flash(f"✓ Synchronized {len(remote_logs)} audit records ({added_count} new) from {machine.hostname}.", "success")
     else:
-        error_msg = result.get("message", "Unknown error")
+        error_msg = result.get("message", "Unknown error") if isinstance(result, dict) else str(result)
         logger.error(f"Failed to fetch audit logs: {error_msg}")
         flash(f"❌ Error fetching from {machine.hostname}: {error_msg}", "error")
     
@@ -621,7 +863,7 @@ def export_audit():
             log.details,
         ])
     output = make_response(si.getvalue())
-    output.headers["Content-Disposition"] = "attachment; filename=aegis_audit_logs.csv"
+    output.headers["Content-Disposition"] = "attachment; filename=niyanta_audit_logs.csv"
     output.headers["Content-type"] = "text/csv"
     return output
 
@@ -698,10 +940,11 @@ def sessions(machine_id):
     machine = TargetMachine.query.get_or_404(machine_id)
     success, result = _agent_request(machine.ip_address, "/sessions")
     session_list = []
-    if success:
+    if success and isinstance(result, dict):
         session_list = result.get("data", {}).get("sessions", [])
     else:
-        flash(f"Error: {result.get('message', 'Unreachable')}", "error")
+        err_msg = result.get("message", "Unreachable") if isinstance(result, dict) else str(result)
+        flash(f"Agent warning: {err_msg}", "warning")
     return render_template("sessions.html", machine=machine, sessions=session_list)
 
 
@@ -793,12 +1036,22 @@ def seed_roles():
 def seed_policies():
     """Create default security policies."""
     defaults = [
-        ("Password Strength", "Enforce minimum password requirements", "password",
-         json.dumps({"min_length": 8, "require_uppercase": True, "require_digit": True, "require_special": True})),
-        ("Session Timeout", "Auto-logout after inactivity", "session",
-         json.dumps({"timeout_minutes": 30, "max_sessions": 3})),
-        ("Access Control", "Default access control policy", "access",
-         json.dumps({"default_deny": True, "require_mfa": False})),
+        ("Password Complexity & Entropy", "Enforce minimum 12-char entropy, mixed casing, digits, and special characters", "password",
+         json.dumps({"min_length": 12, "require_uppercase": True, "require_digit": True, "require_special": True, "max_age_days": 90})),
+        ("Session Timeout & Idle Lock", "Terminate dangling interactive SSH/NT terminal sessions after 15m idle", "session",
+         json.dumps({"idle_timeout_minutes": 15, "max_sessions": 2, "auto_lock": True})),
+        ("MFA Enforcement (Zero Trust)", "Mandate hardware security key (FIDO2) or TOTP authenticator for remote login", "access",
+         json.dumps({"require_mfa": True, "allowed_factors": ["totp", "fido2_webauthn"], "grace_period_hours": 12})),
+        ("Privilege Escalation Guard (No Sudo)", "Restrict root privilege escalation and forbid unauthorized sudo elevation", "access",
+         json.dumps({"allow_sudo": False, "prohibited_binaries": ["/bin/su", "/usr/bin/sudo"], "audit_violation": True})),
+        ("Working Hours & Time-Fence", "Permit access strictly between 08:00 - 19:00 UTC on business weekdays", "session",
+         json.dumps({"allowed_days": ["Mon", "Tue", "Wed", "Thu", "Fri"], "start_time": "08:00", "end_time": "19:00", "enforce_tz": "UTC"})),
+        ("Corporate Subnet IP Whitelist", "Restrict compute node connection origin strictly to corporate private CIDRs", "access",
+         json.dumps({"allowed_cidrs": ["192.168.0.0/16", "10.0.0.0/8"], "block_foreign_geolocations": True})),
+        ("Tamper-Evident Keystroke Audit", "Stream complete terminal input and command execution to immutable audit trail", "compliance",
+         json.dumps({"capture_tty": True, "forward_syslog": True, "retention_days": 180})),
+        ("Credential Expiration (60-Day)", "Mandate 60-day credential rotation and prevent reuse of previous 5 passwords", "password",
+         json.dumps({"max_age_days": 60, "min_age_days": 1, "history_remember": 5})),
     ]
     for name, desc, ptype, rules in defaults:
         if not Policy.query.filter_by(name=name).first():
@@ -815,5 +1068,5 @@ if __name__ == "__main__":
         seed_roles()
         seed_policies()
         logger.info("Database initialised and defaults seeded.")
-    logger.info("Starting Aegis-IAM Dashboard on http://127.0.0.1:5000")
+    logger.info("Starting niyanta-IAM Dashboard on http://127.0.0.1:5000")
     app.run(host="127.0.0.1", port=5000, debug=True)

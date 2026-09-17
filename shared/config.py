@@ -1,5 +1,5 @@
 """
-Aegis-IAM — Shared Configuration & JWT Utilities
+niyanta-IAM — Shared Configuration & JWT Utilities
 Used by both the central server and the remote agents.
 """
 
@@ -9,7 +9,7 @@ import jwt  # PyJWT
 
 # ─── Shared Secret ───────────────────────────────────────────────────────────
 # In production, load from an environment variable or a vault.
-SECRET_KEY = os.environ.get("AEGIS_SECRET_KEY", "aegis-iam-super-secret-key-2026")
+SECRET_KEY = os.environ.get("NIYANTA_SECRET_KEY", "niyanta-iam-super-secret-key-2026")
 
 # JWT settings
 JWT_ALGORITHM = "HS256"
@@ -24,7 +24,7 @@ def generate_token(payload: dict | None = None) -> str:
     """Generate a JWT token with an expiry claim."""
     now = datetime.datetime.utcnow()
     data = {
-        "iss": "aegis-iam-server",
+        "iss": "niyanta-iam-server",
         "iat": now,
         "exp": now + datetime.timedelta(minutes=JWT_EXPIRATION_MINUTES),
     }

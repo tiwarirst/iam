@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local configuration and secrets
+.env
+.env.*
+
+# Runtime data
+*.db
+*.sqlite
+*.sqlite3
+*.log
+
+# Project documentation excluded from version control
+USER_MANUAL.md

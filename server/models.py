@@ -1,5 +1,5 @@
 """
-Aegis-IAM — SQLAlchemy Database Models
+niyanta-IAM — SQLAlchemy Database Models
 """
 
 import datetime
@@ -38,6 +38,15 @@ class Permission(db.Model):
         return f"<Permission {self.action} on {self.resource}>"
 
 
+# ─── User-Policy Association Table (Many-to-Many) ────────────────────────────
+user_policies = db.Table(
+    "user_policies",
+    db.Column("user_id", db.Integer, db.ForeignKey("managed_users.id", ondelete="CASCADE"), primary_key=True),
+    db.Column("policy_id", db.Integer, db.ForeignKey("policies.id", ondelete="CASCADE"), primary_key=True),
+    db.Column("assigned_at", db.DateTime, default=datetime.datetime.utcnow),
+)
+
+
 # ─── Managed User ───────────────────────────────────────────────────────────
 class ManagedUser(db.Model):
     __tablename__ = "managed_users"
@@ -53,9 +62,16 @@ class ManagedUser(db.Model):
     last_activity = db.Column(db.DateTime, nullable=True)
 
     machine = db.relationship("TargetMachine", backref="managed_users")
+    policies = db.relationship(
+        "Policy",
+        secondary=user_policies,
+        backref=db.backref("users", lazy="dynamic"),
+        lazy="subquery",
+    )
 
     def __repr__(self):
         return f"<ManagedUser {self.username}>"
+
 
 
 # ─── Target Machine ─────────────────────────────────────────────────────────
@@ -83,7 +99,7 @@ class AuditLog(db.Model):
     __tablename__ = "audit_logs"
 
     id = db.Column(db.Integer, primary_key=True)
-    machine_id = db.Column(db.Integer, db.ForeignKey("target_machines.id"), nullable=False)
+    machine_id = db.Column(db.Integer, db.ForeignKey("target_machines.id"), nullable=True)
     event_type = db.Column(db.String(64), nullable=False)
     severity = db.Column(db.String(16), default="info")  # info / warning / critical
     actor = db.Column(db.String(128), default="system")  # who triggered the action
