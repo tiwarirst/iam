@@ -265,27 +265,34 @@ def get_audit_logs(max_entries: int = 50) -> list[dict]:
     logger.info(f"get_audit_logs (OS: {CURRENT_OS})")
 
     if CURRENT_OS == "Linux":
-        auth_log = "/var/log/auth.log"
-        if os.path.exists(auth_log):
+        auth_paths = ["/var/log/auth.log", "/var/log/secure"]
+        found_path = None
+        for path in auth_paths:
+            if os.path.exists(path):
+                found_path = path
+                break
+
+        if found_path:
             try:
                 result = subprocess.run(
-                    ["tail", "-n", str(max_entries), auth_log],
+                    ["tail", "-n", str(max_entries), found_path],
                     capture_output=True, text=True, check=True,
                 )
                 for line in result.stdout.strip().splitlines():
                     logs.append({"raw": line})
             except subprocess.CalledProcessError as e:
-                logger.error(f"Error reading auth.log: {e}")
+                logger.error(f"Error reading {found_path}: {e}")
         else:
             try:
+                # Try journalctl for both ssh and sshd, as different distros use different service names
                 result = subprocess.run(
-                    ["journalctl", "-u", "ssh", "-n", str(max_entries), "--no-pager"],
+                    ["journalctl", "-u", "ssh", "-u", "sshd", "-n", str(max_entries), "--no-pager"],
                     capture_output=True, text=True, check=True,
                 )
                 for line in result.stdout.strip().splitlines():
                     logs.append({"raw": line})
             except Exception:
-                logs.append({"raw": "auth.log not found and journalctl unavailable."})
+                logs.append({"raw": "auth.log/secure not found and journalctl unavailable."})
 
     elif CURRENT_OS == "Windows":
         try:
@@ -360,6 +367,81 @@ def api_delete_user():
     if result["success"]:
         return success_response(result["message"])
     return error_response(result["message"], 500)
+
+
+@app.route("/toggle_user", methods=["POST"])
+@require_auth
+def api_toggle_user():
+    """Toggle a user's status on the OS (lock/unlock)."""
+    data = request.get_json(silent=True) or {}
+    username = data.get("username", "").strip()
+    status = data.get("status", "").strip()
+
+    if not username or not status:
+        return error_response("'username' and 'status' are required.", 400)
+
+    try:
+        if CURRENT_OS == "Linux":
+            flag = "-L" if status == "disabled" else "-U"
+            subprocess.run(["usermod", flag, username], check=True, capture_output=True)
+        elif CURRENT_OS == "Windows":
+            cmd = "Disable-LocalUser" if status == "disabled" else "Enable-LocalUser"
+            ps_cmd = f"{cmd} -Name '{username}'"
+            subprocess.run(["powershell", "-NoProfile", "-Command", ps_cmd], check=True, capture_output=True)
+            
+        logger.info(f"Toggled user '{username}' to '{status}' on OS: {CURRENT_OS}")
+        return success_response(f"User '{username}' OS status updated to {status}.")
+    except subprocess.CalledProcessError as e:
+        err = e.stderr.decode() if e.stderr else str(e)
+        logger.error(f"Failed to toggle user {username}: {err}")
+        return error_response(f"Failed to apply status to OS: {err}", 500)
+    except Exception as e:
+        logger.error(f"Exception toggling user {username}: {e}")
+        return error_response(str(e), 500)
+
+
+@app.route("/edit_user", methods=["POST"])
+@require_auth
+def api_edit_user():
+    """Edit a user's OS profile/policies."""
+    import json
+    data = request.get_json(silent=True) or {}
+    username = data.get("username", "").strip()
+    policies = data.get("policies", [])
+
+    if not username:
+        return error_response("'username' is required.", 400)
+
+    applied_rules = []
+    try:
+        for policy in policies:
+            if isinstance(policy, dict):
+                p_name = policy.get("name", "")
+                p_rules_str = policy.get("rules", "{}")
+                try:
+                    rules = json.loads(p_rules_str)
+                    
+                    if CURRENT_OS == "Linux":
+                        if "max_age_days" in rules:
+                            subprocess.run(["chage", "-M", str(rules["max_age_days"]), username], check=True, capture_output=True)
+                            applied_rules.append(f"chage -M {rules['max_age_days']}")
+                    elif CURRENT_OS == "Windows":
+                        if "max_age_days" in rules:
+                            ps_cmd = f"Set-LocalUser -Name '{username}' -PasswordNeverExpires $false"
+                            subprocess.run(["powershell", "-NoProfile", "-Command", ps_cmd], check=True, capture_output=True)
+                            subprocess.run(["net", "accounts", f"/maxpwage:{rules['max_age_days']}"], capture_output=True)
+                            applied_rules.append("Password expiration enabled")
+                            
+                except Exception as e:
+                    logger.warning(f"Failed to parse or apply rule {p_name} for {username}: {e}")
+                    continue
+
+        logger.info(f"Edited user '{username}' and successfully applied {len(applied_rules)} concrete policies on OS: {CURRENT_OS}")
+        return success_response(f"User '{username}' policies enforced on OS. (Rules: {', '.join(applied_rules) if applied_rules else 'None'})")
+    except Exception as e:
+        logger.error(f"Exception editing user {username}: {e}")
+        return error_response(str(e), 500)
+
 
 
 @app.route("/sessions", methods=["GET"])

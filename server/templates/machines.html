@@ -15,12 +15,14 @@
         Node Registry & Telemetry
     </h3>
     <div class="page-header-actions">
-        <a href="{{ url_for('check_all_machines') }}" class="btn btn-secondary">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-            </svg>
-            Ping All Nodes
-        </a>
+        <form method="POST" action="{{ url_for('check_all_machines') }}" style="display:inline;">
+            <button type="submit" class="btn btn-secondary">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                </svg>
+                Ping All Nodes
+            </button>
+        </form>
     </div>
 </div>
 

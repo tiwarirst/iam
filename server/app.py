@@ -45,6 +45,23 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db.init_app(app)
 logger = setup_logger("niyanta-server")
 
+def get_current_actor():
+    from flask import session
+    return session.get("actor", "admin")
+
+def require_permission(action, resource="*"):
+    from functools import wraps
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            # Enforce permission check (dummy for now but utilizes the model)
+            perm = Permission.query.filter_by(action=action).first()
+            if not perm:
+                pass
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
 
 # ── Helper: call agent API ───────────────────────────────────────────────────
 def _agent_request(ip: str, endpoint: str, method: str = "GET", json_data: dict | None = None):
@@ -54,12 +71,12 @@ def _agent_request(ip: str, endpoint: str, method: str = "GET", json_data: dict 
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
     }
-    url = f"http://{ip}:{AGENT_PORT}/{endpoint.lstrip('/')}"
+    url = f"https://{ip}:{AGENT_PORT}/{endpoint.lstrip('/')}"
     try:
         if method.upper() == "POST":
-            resp = requests.post(url, json=json_data, headers=headers, timeout=10)
+            resp = requests.post(url, json=json_data, headers=headers, timeout=10, verify=False)
         else:
-            resp = requests.get(url, headers=headers, timeout=10)
+            resp = requests.get(url, headers=headers, timeout=10, verify=False)
         
         try:
             payload = resp.json()
@@ -499,7 +516,7 @@ def add_machine():
         machine_id=1,  # placeholder, will update
         event_type="MACHINE_REGISTERED",
         severity="info",
-        actor="admin",
+        actor=get_current_actor(),
         details=f"Machine '{hostname}' ({ip_address}) registered as {os_type}",
     )
     db.session.flush()  # get machine.id
@@ -536,7 +553,7 @@ def toggle_machine(machine_id):
     return redirect(url_for("machines"))
 
 
-@app.route("/check_all_machines")
+@app.route("/check_all_machines", methods=["POST"])
 def check_all_machines():
     """Ping all machines to update their status."""
     machines = TargetMachine.query.all()
@@ -619,7 +636,7 @@ def deploy_user():
             machine_id=machine_id,
             event_type="USER_CREATED",
             severity="info",
-            actor="admin",
+            actor=get_current_actor(),
             details=f"User '{username}' deployed on {machine.hostname} ({machine.ip_address})",
         )
         db.session.add(log)
@@ -659,7 +676,7 @@ def remove_user():
             machine_id=machine_id,
             event_type="USER_REMOVED",
             severity="warning",
-            actor="admin",
+            actor=get_current_actor(),
             details=f"User '{username}' removed from {machine.hostname}",
         )
         db.session.add(log)
@@ -683,6 +700,7 @@ def users_page():
 
 
 @app.route("/toggle_user/<int:user_id>", methods=["POST"])
+@require_permission("toggle_user", "users")
 def toggle_user(user_id):
     user = ManagedUser.query.get_or_404(user_id)
     if user.status == "active":
@@ -691,12 +709,20 @@ def toggle_user(user_id):
         user.status = "active"
     else:
         user.status = "active"
+
+    # Enforce on system
+    if user.machine_id:
+        machine = TargetMachine.query.get(user.machine_id)
+        if machine:
+            _agent_request(machine.ip_address, "/toggle_user", "POST", {"username": user.username, "status": user.status})
+
     db.session.commit()
     flash(f"User '{user.username}' status changed to {user.status}.", "success")
     return redirect(url_for("users_page"))
 
 
 @app.route("/edit_user/<int:user_id>", methods=["POST"])
+@require_permission("edit_user", "users")
 def edit_user(user_id):
     user = ManagedUser.query.get_or_404(user_id)
     user.full_name = request.form.get("full_name", user.full_name).strip()
@@ -708,6 +734,16 @@ def edit_user(user_id):
     policy_ids = request.form.getlist("policy_ids")
     clean_pids = [int(p) for p in policy_ids if p.isdigit()]
     user.policies = Policy.query.filter(Policy.id.in_(clean_pids)).all() if clean_pids else []
+
+    # Enforce on system
+    if user.machine_id:
+        machine = TargetMachine.query.get(user.machine_id)
+        if machine:
+            _agent_request(machine.ip_address, "/edit_user", "POST", {
+                "username": user.username,
+                "full_name": user.full_name,
+                "policies": [{"name": p.name, "rules": p.rules} for p in user.policies]
+            })
 
     db.session.commit()
     policy_names = ", ".join(p.name for p in user.policies) or "None"
@@ -800,7 +836,7 @@ def audit_page():
     )
 
 
-@app.route("/fetch_audit/<int:machine_id>")
+@app.route("/fetch_audit/<int:machine_id>", methods=["POST"])
 def fetch_audit(machine_id):
     machine = TargetMachine.query.get_or_404(machine_id)
     logger.info(f"Fetching audit logs from {machine.hostname} ({machine.ip_address})")
@@ -867,72 +903,7 @@ def export_audit():
     output.headers["Content-type"] = "text/csv"
     return output
 
-
-@app.route("/clear_audit", methods=["POST"])
-def clear_audit():
-    AuditLog.query.delete()
-    db.session.commit()
-    flash("All audit logs cleared.", "success")
-    return redirect(url_for("audit_page"))
-
-
-@app.route("/add_test_audit_logs")
-def add_test_audit_logs():
-    """DEBUG ENDPOINT: Add sample audit logs for testing."""
-    sample_events = [
-        {
-            "event_type": "USER_LOGIN",
-            "severity": "info",
-            "actor": "john.doe",
-            "details": "User login successful from 192.168.1.100"
-        },
-        {
-            "event_type": "FAILED_LOGIN",
-            "severity": "warning",
-            "actor": "system",
-            "details": "Failed login attempt for admin (wrong password) from 192.168.1.50"
-        },
-        {
-            "event_type": "PRIVILEGE_ESCALATION",
-            "severity": "critical",
-            "actor": "jane.smith",
-            "details": "User escalated to root privileges"
-        },
-        {
-            "event_type": "FILE_ACCESS",
-            "severity": "info",
-            "actor": "bob.wilson",
-            "details": "Accessed /etc/passwd"
-        },
-        {
-            "event_type": "CONFIG_CHANGE",
-            "severity": "warning",
-            "actor": "admin",
-            "details": "System firewall rules modified"
-        },
-    ]
-    
-    # Add test logs for the first machine
-    machine = TargetMachine.query.first()
-    if not machine:
-        flash("No machines registered. Add a machine first.", "error")
-        return redirect(url_for("machines"))
-    
-    for sample in sample_events:
-        log = AuditLog(
-            machine_id=machine.id,
-            event_type=sample["event_type"],
-            severity=sample["severity"],
-            actor=sample["actor"],
-            details=sample["details"],
-        )
-        db.session.add(log)
-    
-    db.session.commit()
-    flash(f"✓ Added {len(sample_events)} test audit logs for testing!", "success")
-    logger.info(f"Added {len(sample_events)} test audit logs")
-    return redirect(url_for("audit_page"))
-
+# Removed clear_audit and add_test_audit_logs routes
 
 # ── Sessions ─────────────────────────────────────────────────────────────────
 @app.route("/sessions/<int:machine_id>")

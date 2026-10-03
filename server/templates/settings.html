@@ -234,15 +234,6 @@ python agent\universal_agent.py</pre>
         </h3>
     </div>
     <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-        <form method="POST" action="{{ url_for('clear_audit') }}" onsubmit="return confirm('Security confirmation: Permanently purge all compliance audit logs?');">
-            <button type="submit" class="btn btn-danger">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="3 6 5 6 21 6"></polyline>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                </svg>
-                Purge Audit Logs
-            </button>
-        </form>
         <a href="{{ url_for('export_audit') }}" class="btn btn-secondary">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -251,12 +242,14 @@ python agent\universal_agent.py</pre>
             </svg>
             Export Compliance Stream (CSV)
         </a>
-        <a href="{{ url_for('check_all_machines') }}" class="btn btn-secondary">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-            </svg>
-            Health Probe All Compute Nodes
-        </a>
+        <form method="POST" action="{{ url_for('check_all_machines') }}" style="display:inline;">
+            <button type="submit" class="btn btn-secondary">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                </svg>
+                Health Probe All Compute Nodes
+            </button>
+        </form>
     </div>
 </div>
 
