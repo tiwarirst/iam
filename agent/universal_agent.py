@@ -380,14 +380,19 @@ def api_toggle_user():
     if not username or not status:
         return error_response("'username' and 'status' are required.", 400)
 
+    if not _is_valid_username(username):
+        return error_response("Invalid username format.", 400)
+
     try:
         if CURRENT_OS == "Linux":
             flag = "-L" if status == "disabled" else "-U"
             subprocess.run(["usermod", flag, username], check=True, capture_output=True)
         elif CURRENT_OS == "Windows":
             cmd = "Disable-LocalUser" if status == "disabled" else "Enable-LocalUser"
-            ps_cmd = f"{cmd} -Name '{username}'"
-            subprocess.run(["powershell", "-NoProfile", "-Command", ps_cmd], check=True, capture_output=True)
+            ps_cmd = f"{cmd} -Name $env:TARGET_USER"
+            env = os.environ.copy()
+            env["TARGET_USER"] = username
+            subprocess.run(["powershell", "-NoProfile", "-Command", ps_cmd], env=env, check=True, capture_output=True)
             
         logger.info(f"Toggled user '{username}' to '{status}' on OS: {CURRENT_OS}")
         return success_response(f"User '{username}' OS status updated to {status}.")
@@ -400,10 +405,107 @@ def api_toggle_user():
         return error_response(str(e), 500)
 
 
+
+# ── Safe command allowlist ────────────────────────────────────────────────────
+# The agent will ONLY run commands in this list regardless of what the policy says.
+# This prevents a compromised server from running arbitrary OS commands via a policy.
+ALLOWED_LINUX_COMMANDS = {
+    "chage", "usermod", "chmod", "chown", "gpasswd",
+    "groupadd", "groupmod", "passwd", "setfacl",
+}
+ALLOWED_WINDOWS_COMMANDS = {
+    "net", "icacls", "wmic", "attrib",
+}
+# PowerShell is allowed but only specific cmdlets (checked by prefix)
+ALLOWED_POWERSHELL_CMDLETS = {
+    "Set-LocalUser", "Set-ExecutionPolicy", "Set-ItemProperty",
+    "Disable-LocalUser", "Enable-LocalUser", "Add-LocalGroupMember",
+    "Remove-LocalGroupMember", "New-ItemProperty",
+}
+
+
+def _run_policy_commands(username: str, rules: dict) -> list[dict]:
+    """
+    Generic policy enforcer.
+
+    Policy rules JSON schema (what you put in the 'rules' field when creating a policy):
+    {
+        "linux_commands": [
+            ["chage", "-M", "60", "__username__"],
+            ["usermod", "-s", "/bin/rbash", "__username__"]
+        ],
+        "windows_commands": [
+            ["net", "accounts", "/maxpwage:60"],
+            ["powershell", "-Command", "Set-LocalUser -Name '__username__' -PasswordNeverExpires $false"]
+        ]
+    }
+
+    __username__ is replaced with the actual username at runtime.
+    Only commands in ALLOWED_LINUX_COMMANDS / ALLOWED_WINDOWS_COMMANDS are executed.
+    Agent code never needs to change when you add new policies — just update the JSON.
+    """
+    results = []
+    os_key = "linux_commands" if CURRENT_OS == "Linux" else "windows_commands"
+    commands = rules.get(os_key, [])
+
+    for cmd_template in commands:
+        if not isinstance(cmd_template, list) or not cmd_template:
+            continue
+
+        # Substitute __username__ placeholder in every argument
+        cmd = [part.replace("__username__", username) for part in cmd_template]
+        binary = cmd[0].lower()
+
+        # Security: check binary against allowlist
+        allowed_set = ALLOWED_LINUX_COMMANDS if CURRENT_OS == "Linux" else ALLOWED_WINDOWS_COMMANDS
+        if binary not in allowed_set:
+            # Special case: powershell is allowed only for specific cmdlets
+            if binary == "powershell" and CURRENT_OS == "Windows":
+                cmdlet = cmd[-1].strip().split()[0] if len(cmd) > 1 else ""
+                if not any(cmdlet.startswith(c) for c in ALLOWED_POWERSHELL_CMDLETS):
+                    logger.warning(f"Blocked disallowed PowerShell cmdlet: {cmdlet}")
+                    results.append({"cmd": " ".join(cmd), "status": "blocked", "reason": "cmdlet not in allowlist"})
+                    continue
+            else:
+                logger.warning(f"Blocked disallowed command: {binary}")
+                results.append({"cmd": " ".join(cmd), "status": "blocked", "reason": "binary not in allowlist"})
+                continue
+
+        try:
+            proc = subprocess.run(cmd, capture_output=True, text=True)
+            status = "ok" if proc.returncode == 0 else "error"
+            results.append({
+                "cmd": " ".join(cmd),
+                "status": status,
+                "returncode": proc.returncode,
+                "stderr": proc.stderr.strip()[:200] if proc.stderr else "",
+            })
+            logger.info(f"Policy cmd [{status}]: {' '.join(cmd)}")
+        except Exception as e:
+            results.append({"cmd": " ".join(cmd), "status": "exception", "error": str(e)})
+            logger.error(f"Policy cmd exception: {e}")
+
+    return results
+
+
 @app.route("/edit_user", methods=["POST"])
 @require_auth
 def api_edit_user():
-    """Edit a user's OS profile/policies."""
+    """
+    Apply a list of policies to an OS user account.
+
+    The server sends:
+        {
+            "username": "alice",
+            "policies": [
+                {"name": "Password Expiry 60d", "rules": "{\"linux_commands\": [[\"chage\",\"-M\",\"60\",\"__username__\"]]}"},
+                {"name": "Restricted Shell",    "rules": "{\"linux_commands\": [[\"usermod\",\"-s\",\"/bin/rbash\",\"__username__\"]]}"}
+            ]
+        }
+
+    The agent runs every command defined in the policy's rules JSON.
+    Adding a new policy type requires ZERO changes to this agent code.
+    """
     import json
     data = request.get_json(silent=True) or {}
     username = data.get("username", "").strip()
@@ -411,36 +513,34 @@ def api_edit_user():
 
     if not username:
         return error_response("'username' is required.", 400)
+    if not _is_valid_username(username):
+        return error_response("Invalid username format.", 400)
 
-    applied_rules = []
+    applied = []
     try:
         for policy in policies:
-            if isinstance(policy, dict):
-                p_name = policy.get("name", "")
-                p_rules_str = policy.get("rules", "{}")
-                try:
-                    rules = json.loads(p_rules_str)
-                    
-                    if CURRENT_OS == "Linux":
-                        if "max_age_days" in rules:
-                            subprocess.run(["chage", "-M", str(rules["max_age_days"]), username], check=True, capture_output=True)
-                            applied_rules.append(f"chage -M {rules['max_age_days']}")
-                    elif CURRENT_OS == "Windows":
-                        if "max_age_days" in rules:
-                            ps_cmd = f"Set-LocalUser -Name '{username}' -PasswordNeverExpires $false"
-                            subprocess.run(["powershell", "-NoProfile", "-Command", ps_cmd], check=True, capture_output=True)
-                            subprocess.run(["net", "accounts", f"/maxpwage:{rules['max_age_days']}"], capture_output=True)
-                            applied_rules.append("Password expiration enabled")
-                            
-                except Exception as e:
-                    logger.warning(f"Failed to parse or apply rule {p_name} for {username}: {e}")
-                    continue
+            if not isinstance(policy, dict):
+                continue
+            p_name = policy.get("name", "unnamed")
+            p_rules_str = policy.get("rules", "{}")
+            try:
+                rules = json.loads(p_rules_str)
+            except json.JSONDecodeError:
+                logger.warning(f"Skipping policy '{p_name}': invalid JSON rules.")
+                continue
 
-        logger.info(f"Edited user '{username}' and successfully applied {len(applied_rules)} concrete policies on OS: {CURRENT_OS}")
-        return success_response(f"User '{username}' policies enforced on OS. (Rules: {', '.join(applied_rules) if applied_rules else 'None'})")
+            cmd_results = _run_policy_commands(username, rules)
+            applied.append({"policy": p_name, "commands": cmd_results})
+
+        logger.info(f"edit_user '{username}': applied {len(applied)} policies on {CURRENT_OS}.")
+        return success_response(
+            f"Policies applied to '{username}' on {CURRENT_OS}.",
+            {"applied": applied},
+        )
     except Exception as e:
-        logger.error(f"Exception editing user {username}: {e}")
+        logger.error(f"Exception in api_edit_user for '{username}': {e}")
         return error_response(str(e), 500)
+
 
 
 

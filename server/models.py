@@ -20,6 +20,13 @@ class Role(db.Model):
 
     users = db.relationship("ManagedUser", backref="role", lazy=True)
     permissions = db.relationship("Permission", backref="role", lazy=True, cascade="all, delete-orphan")
+    # Policies that belong to this Role — enforced on every user who carries this role
+    policies = db.relationship(
+        "Policy",
+        secondary="role_policies",
+        backref=db.backref("roles", lazy="dynamic"),
+        lazy="subquery",
+    )
 
     def __repr__(self):
         return f"<Role {self.name}>"
@@ -42,6 +49,17 @@ class Permission(db.Model):
 user_policies = db.Table(
     "user_policies",
     db.Column("user_id", db.Integer, db.ForeignKey("managed_users.id", ondelete="CASCADE"), primary_key=True),
+    db.Column("policy_id", db.Integer, db.ForeignKey("policies.id", ondelete="CASCADE"), primary_key=True),
+    db.Column("assigned_at", db.DateTime, default=datetime.datetime.utcnow),
+)
+
+# ─── Role-Policy Association Table (Many-to-Many) ────────────────────────────
+# This is the CORE of RBAC: a Role owns a set of Policies (boundaries).
+# When a user is assigned a Role, they inherit all of that Role's Policies
+# which are then enforced on the actual OS machine by the agent.
+role_policies = db.Table(
+    "role_policies",
+    db.Column("role_id", db.Integer, db.ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True),
     db.Column("policy_id", db.Integer, db.ForeignKey("policies.id", ondelete="CASCADE"), primary_key=True),
     db.Column("assigned_at", db.DateTime, default=datetime.datetime.utcnow),
 )

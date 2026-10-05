@@ -625,13 +625,43 @@ def deploy_user():
             role_id=role_id if role_id and role_id > 0 else None,
             status="active",
         )
-        # Attach Selected Multi-Policies
+        # Attach user-specific policy overrides
         policy_ids = request.form.getlist("policy_ids")
         clean_pids = [int(p) for p in policy_ids if p.isdigit()]
         if clean_pids:
             user_record.policies = Policy.query.filter(Policy.id.in_(clean_pids)).all()
 
         db.session.add(user_record)
+        db.session.commit()
+
+        # ═══ RBAC ENFORCEMENT ═══════════════════════════════════════════════
+        # Step 1: collect policies from the assigned Role  (inherited boundaries)
+        # Step 2: add any user-specific policy overrides on top
+        # Step 3: send the full flat list to the agent -> agent enforces on the OS account
+        all_policies_to_enforce = []
+        if user_record.role_id:
+            role_obj = Role.query.get(user_record.role_id)
+            if role_obj and role_obj.policies:
+                all_policies_to_enforce += [
+                    {"name": p.name, "rules": p.rules}
+                    for p in role_obj.policies if p.is_active
+                ]
+        all_policies_to_enforce += [
+            {"name": p.name, "rules": p.rules}
+            for p in user_record.policies if p.is_active
+        ]
+        if all_policies_to_enforce:
+            ok, res = _agent_request(
+                machine.ip_address, "/edit_user", "POST",
+                {"username": username, "policies": all_policies_to_enforce},
+            )
+            enforced_names = ", ".join(p["name"] for p in all_policies_to_enforce)
+            if ok:
+                logger.info(f"RBAC: policies enforced on '{username}': {enforced_names}")
+            else:
+                logger.warning(f"User created but policy enforcement failed: {res.get('message')}")
+        # ════════════════════════════════════════════════════════════════════
+
         log = AuditLog(
             machine_id=machine_id,
             event_type="USER_CREATED",
@@ -730,22 +760,39 @@ def edit_user(user_id):
     raw_role_id = request.form.get("role_id", "").strip()
     user.role_id = int(raw_role_id) if raw_role_id.isdigit() and int(raw_role_id) > 0 else None
 
-    # Multi-Policy Support: Attach multiple policies to single user
+    # User-specific policy overrides (on top of role-inherited policies)
     policy_ids = request.form.getlist("policy_ids")
     clean_pids = [int(p) for p in policy_ids if p.isdigit()]
     user.policies = Policy.query.filter(Policy.id.in_(clean_pids)).all() if clean_pids else []
 
-    # Enforce on system
+    db.session.commit()
+
+    # === RBAC ENFORCEMENT ====================================================
+    # Merge role-inherited policies + user-specific policies -> send to agent
     if user.machine_id:
         machine = TargetMachine.query.get(user.machine_id)
         if machine:
+            all_policies_to_enforce = []
+            # 1. Role-inherited policies (the RBAC boundary for this role)
+            if user.role_id:
+                role_obj = Role.query.get(user.role_id)
+                if role_obj and role_obj.policies:
+                    all_policies_to_enforce += [
+                        {"name": p.name, "rules": p.rules}
+                        for p in role_obj.policies if p.is_active
+                    ]
+            # 2. User-specific overrides
+            all_policies_to_enforce += [
+                {"name": p.name, "rules": p.rules}
+                for p in user.policies if p.is_active
+            ]
             _agent_request(machine.ip_address, "/edit_user", "POST", {
                 "username": user.username,
                 "full_name": user.full_name,
-                "policies": [{"name": p.name, "rules": p.rules} for p in user.policies]
+                "policies": all_policies_to_enforce,
             })
+    # =========================================================================
 
-    db.session.commit()
     policy_names = ", ".join(p.name for p in user.policies) or "None"
     _create_alert(f"Policies updated for {user.username}", f"Active guardrails: {policy_names}", "info", "users")
     flash(f"User '{user.username}' updated with {len(user.policies)} security policies.", "success")
@@ -799,6 +846,52 @@ def edit_role(role_id):
     role.color = request.form.get("color", role.color).strip()
     db.session.commit()
     flash(f"Role '{role.name}' updated.", "success")
+    return redirect(url_for("roles_page"))
+
+
+# ── Role <-> Policy wiring (RBAC: define boundaries of a role) ────────────────
+@app.route("/role/<int:role_id>/add_policy", methods=["POST"])
+def role_add_policy(role_id):
+    """Attach a Policy to a Role. Every user with this role inherits this boundary.
+    Also immediately re-enforces on all existing users who carry this role."""
+    role = Role.query.get_or_404(role_id)
+    policy_id = request.form.get("policy_id", type=int)
+    if not policy_id:
+        flash("No policy selected.", "error")
+        return redirect(url_for("roles_page"))
+    policy = Policy.query.get_or_404(policy_id)
+    if policy not in role.policies:
+        role.policies.append(policy)
+        db.session.commit()
+        flash(f"Policy '{policy.name}' added to role '{role.name}'.", "success")
+        # Live push: re-enforce updated role policies on all existing users with this role
+        users_with_role = ManagedUser.query.filter_by(role_id=role.id).all()
+        for u in users_with_role:
+            if u.machine_id:
+                machine = TargetMachine.query.get(u.machine_id)
+                if machine:
+                    all_p = [{"name": p.name, "rules": p.rules} for p in role.policies if p.is_active]
+                    all_p += [{"name": p.name, "rules": p.rules} for p in u.policies if p.is_active]
+                    _agent_request(machine.ip_address, "/edit_user", "POST",
+                                   {"username": u.username, "policies": all_p})
+        if users_with_role:
+            flash(f"Policy re-enforced on {len(users_with_role)} existing user(s).", "info")
+    else:
+        flash(f"Policy '{policy.name}' is already assigned to this role.", "warning")
+    return redirect(url_for("roles_page"))
+
+
+@app.route("/role/<int:role_id>/remove_policy/<int:policy_id>", methods=["POST"])
+def role_remove_policy(role_id, policy_id):
+    """Remove a Policy from a Role."""
+    role = Role.query.get_or_404(role_id)
+    policy = Policy.query.get_or_404(policy_id)
+    if policy in role.policies:
+        role.policies.remove(policy)
+        db.session.commit()
+        flash(f"Policy '{policy.name}' removed from role '{role.name}'.", "success")
+    else:
+        flash("Policy was not assigned to this role.", "warning")
     return redirect(url_for("roles_page"))
 
 
@@ -1005,24 +1098,118 @@ def seed_roles():
 
 
 def seed_policies():
-    """Create default security policies."""
+    """
+    Create default security policies in the new command-array format.
+
+    Rules JSON schema understood by the agent:
+    {
+        "linux_commands":   [ ["cmd", "arg1", "arg2", "__username__"], ... ],
+        "windows_commands": [ ["cmd", "arg1", "arg2"], ... ]
+    }
+    __username__ is substituted at runtime with the actual OS username.
+    """
     defaults = [
-        ("Password Complexity & Entropy", "Enforce minimum 12-char entropy, mixed casing, digits, and special characters", "password",
-         json.dumps({"min_length": 12, "require_uppercase": True, "require_digit": True, "require_special": True, "max_age_days": 90})),
-        ("Session Timeout & Idle Lock", "Terminate dangling interactive SSH/NT terminal sessions after 15m idle", "session",
-         json.dumps({"idle_timeout_minutes": 15, "max_sessions": 2, "auto_lock": True})),
-        ("MFA Enforcement (Zero Trust)", "Mandate hardware security key (FIDO2) or TOTP authenticator for remote login", "access",
-         json.dumps({"require_mfa": True, "allowed_factors": ["totp", "fido2_webauthn"], "grace_period_hours": 12})),
-        ("Privilege Escalation Guard (No Sudo)", "Restrict root privilege escalation and forbid unauthorized sudo elevation", "access",
-         json.dumps({"allow_sudo": False, "prohibited_binaries": ["/bin/su", "/usr/bin/sudo"], "audit_violation": True})),
-        ("Working Hours & Time-Fence", "Permit access strictly between 08:00 - 19:00 UTC on business weekdays", "session",
-         json.dumps({"allowed_days": ["Mon", "Tue", "Wed", "Thu", "Fri"], "start_time": "08:00", "end_time": "19:00", "enforce_tz": "UTC"})),
-        ("Corporate Subnet IP Whitelist", "Restrict compute node connection origin strictly to corporate private CIDRs", "access",
-         json.dumps({"allowed_cidrs": ["192.168.0.0/16", "10.0.0.0/8"], "block_foreign_geolocations": True})),
-        ("Tamper-Evident Keystroke Audit", "Stream complete terminal input and command execution to immutable audit trail", "compliance",
-         json.dumps({"capture_tty": True, "forward_syslog": True, "retention_days": 180})),
-        ("Credential Expiration (60-Day)", "Mandate 60-day credential rotation and prevent reuse of previous 5 passwords", "password",
-         json.dumps({"max_age_days": 60, "min_age_days": 1, "history_remember": 5})),
+        (
+            "Password Expiry (90-Day)",
+            "Force password rotation every 90 days",
+            "password",
+            json.dumps({
+                "linux_commands": [
+                    ["chage", "-M", "90", "__username__"],
+                    ["chage", "-m", "1",  "__username__"],   # min 1 day between changes
+                ],
+                "windows_commands": [
+                    ["net", "accounts", "/maxpwage:90"],
+                ],
+            }),
+        ),
+        (
+            "Credential Expiration (60-Day)",
+            "Strict 60-day credential rotation",
+            "password",
+            json.dumps({
+                "linux_commands": [
+                    ["chage", "-M", "60", "__username__"],
+                    ["chage", "-m", "1",  "__username__"],
+                ],
+                "windows_commands": [
+                    ["net", "accounts", "/maxpwage:60"],
+                ],
+            }),
+        ),
+        (
+            "Restricted Shell (rbash)",
+            "Lock user to restricted bash — cannot cd, cannot run commands with /",
+            "access",
+            json.dumps({
+                "linux_commands": [
+                    ["usermod", "-s", "/bin/rbash", "__username__"],
+                ],
+                "windows_commands": [],   # No direct Windows equivalent via net/icacls
+            }),
+        ),
+        (
+            "Account Expiry (180-Day)",
+            "Account automatically expires after 180 days",
+            "access",
+            json.dumps({
+                "linux_commands": [
+                    ["chage", "-E", "$(date -d '+180 days' +%Y-%m-%d)", "__username__"],
+                ],
+                "windows_commands": [],
+            }),
+        ),
+        (
+            "Force Password Change on Next Login",
+            "User must set a new password the next time they log in",
+            "password",
+            json.dumps({
+                "linux_commands": [
+                    ["chage", "-d", "0", "__username__"],
+                ],
+                "windows_commands": [
+                    ["powershell", "-Command",
+                     "Set-LocalUser -Name '__username__' -PasswordChangeableDate (Get-Date)"],
+                ],
+            }),
+        ),
+        (
+            "Lock Account (Disable Login)",
+            "Immediately lock the OS account — user cannot log in",
+            "access",
+            json.dumps({
+                "linux_commands": [
+                    ["usermod", "-L", "__username__"],
+                ],
+                "windows_commands": [
+                    ["powershell", "-Command", "Disable-LocalUser -Name '__username__'"],
+                ],
+            }),
+        ),
+        (
+            "Add to Audit Group",
+            "Add user to the 'adm' group for audit log read access (Linux)",
+            "access",
+            json.dumps({
+                "linux_commands": [
+                    ["gpasswd", "-a", "__username__", "adm"],
+                ],
+                "windows_commands": [],
+            }),
+        ),
+        (
+            "Read-Only Home Directory",
+            "Remove write permission from home dir — user cannot create files",
+            "access",
+            json.dumps({
+                "linux_commands": [
+                    ["chmod", "555", "/home/__username__"],
+                ],
+                "windows_commands": [
+                    ["icacls", "C:\\Users\\__username__", "/deny", "__username__:(W)"],
+                ],
+            }),
+        ),
     ]
     for name, desc, ptype, rules in defaults:
         if not Policy.query.filter_by(name=name).first():
